@@ -185,6 +185,34 @@
             box-shadow: var(--shadow-lg);
         }
 
+        /* Professional Payment Options */
+        .payment-option-btn {
+            min-height: 70px;
+        }
+
+        .payment-option-btn.selected {
+            background: #10b981 !important;
+            border-color: #10b981 !important;
+            color: white !important;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3) !important;
+        }
+
+        .payment-option-btn.selected div {
+            color: white !important;
+        }
+
+        .payment-option-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(0.5);
+        }
+
+        .payment-option-btn:disabled:hover {
+            transform: none !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+            border-color: var(--gray-300) !important;
+        }
+
         .btn-success {
             background: var(--success);
             color: white;
@@ -229,28 +257,6 @@
             .print-area {
                 display: block !important;
             }
-        }
-
-        /* Dark Mode */
-        .dark {
-            background: #0f172a;
-            color: #f1f5f9;
-        }
-
-        .dark .bg-white {
-            background: #1e293b;
-        }
-
-        .dark .text-gray-900 {
-            color: #f1f5f9;
-        }
-
-        .dark .text-gray-600 {
-            color: #cbd5e1;
-        }
-
-        .dark .border-gray-200 {
-            border-color: #334155;
         }
 
         /* Animations */
@@ -399,9 +405,9 @@
                 this.state = {
                     currentPage: 'home',
                     isLoggedIn: false,
-                    theme: localStorage.getItem('theme') || 'light',
                     cart: [],
                     selectedCustomer: null,
+                    selectedCustomerForView: null, // For viewing customer invoices
                     discount: 0,
                     discountType: 'percentage', // 'percentage' or 'fixed'
                     heldOrders: JSON.parse(localStorage.getItem('heldOrders') || '[]'),
@@ -410,14 +416,49 @@
                         dateTo: '',
                         paymentMethod: '',
                         customer: '',
+                        orderType: 'all',
                         quickFilter: 'all'
+                    },
+                    customerFilters: JSON.parse(localStorage.getItem('customerFilters') || 'null') || {
+                        status: '',
+                        dateFrom: '',
+                        dateTo: '',
+                        purchaseAmountMin: '',
+                        purchaseAmountMax: ''
+                    },
+                    customerSort: JSON.parse(localStorage.getItem('customerSort') || 'null') || {
+                        field: 'totalSpent',
+                        order: 'desc'
+                    },
+                    posFilters: JSON.parse(localStorage.getItem('posFilters') || 'null') || {
+                        category: '',
+                        stockStatus: '',
+                        priceMin: '',
+                        priceMax: '',
+                        sortBy: 'name'
+                    },
+                    inventoryFilters: JSON.parse(localStorage.getItem('inventoryFilters') || 'null') || {
+                        poStatus: '',
+                        poDateFrom: '',
+                        poDateTo: '',
+                        poSupplier: '',
+                        poAmountMin: '',
+                        poAmountMax: '',
+                        poSearch: '',
+                        returnStatus: '',
+                        returnType: '',
+                        returnDateFrom: '',
+                        returnDateTo: '',
+                        returnCustomer: '',
+                        returnAmountMin: '',
+                        returnAmountMax: '',
+                        returnSearch: ''
                     },
                     settings: JSON.parse(localStorage.getItem('settings')) || {
                         businessName: 'QuickBill',
                         logo: '',
                         taxRate: 10,
-                        currency: 'INR',
-                        theme: 'light'
+                        currency: 'INR'
                     }
                 };
                 this.listeners = [];
@@ -486,12 +527,6 @@
             navigate(page) { this.setState({ currentPage: page }); window.scrollTo(0, 0); }
             login() { this.setState({ isLoggedIn: true, currentPage: 'dashboard' }); }
             logout() { this.setState({ isLoggedIn: false, currentPage: 'home' }); }
-            toggleTheme() {
-                const newTheme = this.state.theme === 'light' ? 'dark' : 'light';
-                this.setState({ theme: newTheme });
-                localStorage.setItem('theme', newTheme);
-                document.body.classList.toggle('dark');
-            }
         }
 
         const store = new Store();
@@ -1010,8 +1045,22 @@
             const products = JSON.parse(localStorage.getItem('products') || '[]');
             const customers = JSON.parse(localStorage.getItem('customers') || '[]');
             const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
-            const totalSales = invoices.reduce((sum, inv) => sum + inv.total, 0);
+            
+            // Get today's date in YYYY-MM-DD format
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Calculate today's sales
+            const todaySales = invoices
+                .filter(inv => inv.date === today)
+                .reduce((sum, inv) => sum + inv.total, 0);
+            
+            // Count today's invoices
+            const todayInvoices = invoices.filter(inv => inv.date === today).length;
+            
+            // Total customers
             const totalCustomers = customers.length;
+            
+            const totalSales = invoices.reduce((sum, inv) => sum + inv.total, 0);
             const lowStock = products.filter(p => p.stock < 10).length;
             const topProducts = [...products].sort((a, b) => b.stock - a.stock).slice(0, 5);
             const lowStockProducts = products.filter(p => p.stock < 10);
@@ -1022,19 +1071,20 @@
                     <main class="flex-1 p-8 overflow-y-auto animate-fade-in">
                         <div class="flex justify-between items-center mb-8">
                             <h1 class="text-3xl font-bold text-gray-800">Dashboard</h1>
-                            <button onclick="store.toggleTheme()" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition">
-                                <i class="fas fa-moon"></i>
-                            </button>
+                            <div class="text-right">
+                                <div class="text-lg font-semibold text-gray-800" id="dashboardDate"></div>
+                                <div class="text-sm text-gray-600" id="dashboardTime"></div>
+                            </div>
                         </div>
 
                         <div class="grid md:grid-cols-4 gap-6 mb-8">
                             <div class="bg-white p-6 rounded-lg shadow-sm card-hover">
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <p class="text-gray-600 text-sm">Total Sales</p>
-                                        <p class="text-2xl font-bold text-gray-800">${formatCurrency(totalSales)}</p>
+                                        <p class="text-gray-600 text-sm">Today's Sales</p>
+                                        <p class="text-2xl font-bold text-gray-800">${formatCurrency(todaySales)}</p>
                                     </div>
-                                    <i class="fas fa-indian-rupee-sign text-3xl text-green-500"></i>
+                                    <i class="fas fa-chart-line text-3xl text-green-500"></i>
                                 </div>
                             </div>
                             <div class="bg-white p-6 rounded-lg shadow-sm card-hover">
@@ -1049,8 +1099,8 @@
                             <div class="bg-white p-6 rounded-lg shadow-sm card-hover">
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <p class="text-gray-600 text-sm">Total Invoices</p>
-                                        <p class="text-2xl font-bold text-gray-800">${invoices.length}</p>
+                                        <p class="text-gray-600 text-sm">Today's Invoices</p>
+                                        <p class="text-2xl font-bold text-gray-800">${todayInvoices}</p>
                                     </div>
                                     <i class="fas fa-file-invoice text-3xl text-purple-500"></i>
                                 </div>
@@ -1063,6 +1113,15 @@
                                     </div>
                                     <i class="fas fa-exclamation-triangle text-3xl text-red-500"></i>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                            <div class="relative">
+                                <input type="text" id="dashboardProductSearch" placeholder="Search products or scan barcode..." class="input-field" onkeypress="handleDashboardSearch(event)" style="padding-right: 45px;">
+                                <button type="button" onclick="handleDashboardSearchClick()" class="absolute right-3 top-1/2 transform -translate-y-1/2" style="background: transparent; border: none; cursor: pointer; color: var(--gray-500); padding: 8px; transition: color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--gray-500)'">
+                                    <i class="fas fa-barcode" style="font-size: 18px;"></i>
+                                </button>
                             </div>
                         </div>
 
@@ -1090,7 +1149,7 @@
 
                             <div class="bg-white p-6 rounded-lg shadow-sm">
                                 <h2 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
-                                    <i class="fas fa-exclamation-circle text-red-500 mr-2"></i>
+                                    <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>
                                     Low Stock Alert
                                 </h2>
                                 <div class="space-y-3">
@@ -1181,26 +1240,11 @@
                         <div class="grid md:grid-cols-3 gap-6">
                             <div class="md:col-span-2">
                                 <div class="bg-white p-4 rounded-lg shadow-sm mb-4">
-                                    <div class="grid grid-cols-2 gap-4 mb-4">
-                                        <div>
-                                            <label class="block text-sm font-semibold text-gray-700 mb-2">Select Customer</label>
-                                            <select id="customerSelect" class="input-field" onchange="selectCustomer(this.value)">
-                                                <option value="">Walk-in Customer</option>
-                                                ${customers.map(c => `
-                                                    <option value="${c.id}" ${selectedCustomer === c.id ? 'selected' : ''}>${c.name}</option>
-                                                `).join('')}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-semibold text-gray-700 mb-2">Filter by Category</label>
-                                            <select id="categoryFilter" class="input-field" onchange="filterByCategory(this.value)">
-                                                <option value="">All Categories</option>
-                                                ${categories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
-                                            </select>
-                                        </div>
-                                    </div>
-                                <div class="mb-4">
-                                        <input type="text" id="productSearch" placeholder="Search products or scan barcode..." class="input-field" oninput="filterProducts(this.value)">
+                                    <div class="mb-4 relative">
+                                        <input type="text" id="productSearch" placeholder="Search products or scan barcode..." class="input-field" oninput="filterProducts(this.value)" style="padding-right: 45px;">
+                                        <button type="button" onclick="scanBarcode()" class="absolute right-3 top-1/2 transform -translate-y-1/2" style="background: transparent; border: none; cursor: pointer; color: var(--gray-500); padding: 8px; transition: color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--gray-500)'">
+                                            <i class="fas fa-barcode" style="font-size: 18px;"></i>
+                                        </button>
                                 </div>
                                 </div>
                                 <div id="productsGrid" class="grid grid-cols-2 md:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
@@ -1274,23 +1318,38 @@
                                         <span>${formatCurrency(total)}</span>
                                     </div>
                                 </div>
-                                <div class="mt-6 space-y-3">
-                                    <button onclick="checkout('Cash')" class="btn-secondary w-full" ${cart.length === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
-                                        <i class="fas fa-money-bill-wave mr-2"></i>Pay Cash
+                                <div class="mt-6">
+                                    <h3 style="font-size: 0.875rem; font-weight: 600; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem;">Payment Methods</h3>
+                                    <div class="grid grid-cols-2 gap-2 mb-4">
+                                        <button onclick="selectPaymentMethod('Cash', this)" class="payment-option-btn" data-payment="Cash" ${cart.length === 0 ? 'disabled' : ''} style="background: white; border: 2px solid var(--gray-300); padding: 10px; border-radius: 10px; color: var(--gray-700); font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; position: relative; overflow: hidden;" onmouseover="if(!this.disabled && !this.classList.contains('selected')) {this.style.borderColor='var(--gray-400)'; this.style.boxShadow='0 2px 6px rgba(0, 0, 0, 0.15)';}" onmouseout="if(!this.disabled && !this.classList.contains('selected')) {this.style.borderColor='var(--gray-300)'; this.style.boxShadow='0 1px 3px rgba(0, 0, 0, 0.1)';}">
+                                            <div style="font-size: 20px; color: var(--gray-600);"><i class="fas fa-money-bill-wave"></i></div>
+                                            <div>Cash</div>
                                     </button>
-                                    <button onclick="checkout('Card')" class="btn-primary w-full" ${cart.length === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
-                                        <i class="fas fa-credit-card mr-2"></i>Pay Card
+                                        <button onclick="selectPaymentMethod('Card', this)" class="payment-option-btn" data-payment="Card" ${cart.length === 0 ? 'disabled' : ''} style="background: white; border: 2px solid var(--gray-300); padding: 10px; border-radius: 10px; color: var(--gray-700); font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; position: relative; overflow: hidden;" onmouseover="if(!this.disabled && !this.classList.contains('selected')) {this.style.borderColor='var(--gray-400)'; this.style.boxShadow='0 2px 6px rgba(0, 0, 0, 0.15)';}" onmouseout="if(!this.disabled && !this.classList.contains('selected')) {this.style.borderColor='var(--gray-300)'; this.style.boxShadow='0 1px 3px rgba(0, 0, 0, 0.1)';}">
+                                            <div style="font-size: 20px; color: var(--gray-600);"><i class="fas fa-credit-card"></i></div>
+                                            <div>Card</div>
                                     </button>
-                                    <button onclick="showReturnExchangeModal()" class="w-full" style="background: var(--info); color: white; padding: 12px; border-radius: 8px; font-weight: 600; border: none; cursor: pointer;" onmouseover="this.style.background='#2563eb';" onmouseout="this.style.background='var(--info)';">
-                                        <i class="fas fa-exchange-alt mr-2"></i>Return / Exchange
-                                    </button>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <button onclick="holdOrder()" class="w-full" style="background: var(--warning); color: white; padding: 12px; border-radius: 8px; font-weight: 600; border: none; cursor: pointer;" ${cart.length === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} onmouseover="if(!this.disabled) this.style.background='#d97706';" onmouseout="if(!this.disabled) this.style.background='var(--warning)';">
-                                            <i class="fas fa-bookmark mr-2"></i>Hold
+                                        <button onclick="selectPaymentMethod('UPI', this)" class="payment-option-btn" data-payment="UPI" ${cart.length === 0 ? 'disabled' : ''} style="background: white; border: 2px solid var(--gray-300); padding: 10px; border-radius: 10px; color: var(--gray-700); font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; position: relative; overflow: hidden;" onmouseover="if(!this.disabled && !this.classList.contains('selected')) {this.style.borderColor='var(--gray-400)'; this.style.boxShadow='0 2px 6px rgba(0, 0, 0, 0.15)';}" onmouseout="if(!this.disabled && !this.classList.contains('selected')) {this.style.borderColor='var(--gray-300)'; this.style.boxShadow='0 1px 3px rgba(0, 0, 0, 0.1)';}">
+                                            <div style="font-size: 20px; color: var(--gray-600);"><i class="fas fa-qrcode"></i></div>
+                                            <div>UPI</div>
                                         </button>
-                                        <button onclick="clearCart()" class="w-full" style="background: var(--gray-200); color: var(--gray-700); padding: 12px; border-radius: 8px; font-weight: 600; border: none; cursor: pointer;" ${cart.length === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} onmouseover="if(!this.disabled) this.style.background='var(--gray-300)';" onmouseout="if(!this.disabled) this.style.background='var(--gray-200)';">
-                                            <i class="fas fa-trash mr-2"></i>Clear
+                                        <button onclick="selectPaymentMethod('Credit Note', this)" class="payment-option-btn" data-payment="Credit Note" ${cart.length === 0 ? 'disabled' : ''} style="background: white; border: 2px solid var(--gray-300); padding: 10px; border-radius: 10px; color: var(--gray-700); font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; position: relative; overflow: hidden;" onmouseover="if(!this.disabled && !this.classList.contains('selected')) {this.style.borderColor='var(--gray-400)'; this.style.boxShadow='0 2px 6px rgba(0, 0, 0, 0.15)';}" onmouseout="if(!this.disabled && !this.classList.contains('selected')) {this.style.borderColor='var(--gray-300)'; this.style.boxShadow='0 1px 3px rgba(0, 0, 0, 0.1)';}">
+                                            <div style="font-size: 20px; color: var(--gray-600);"><i class="fas fa-file-invoice"></i></div>
+                                            <div>Credit Note</div>
                                     </button>
+                                    </div>
+                                    <div class="space-y-2 mt-4">
+                                        <button onclick="showReturnExchangeModal()" class="w-full" style="background: white; border: 2px solid var(--info); color: var(--info); padding: 12px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px;" onmouseover="this.style.background='var(--info)'; this.style.color='white';" onmouseout="this.style.background='white'; this.style.color='var(--info)';">
+                                            <i class="fas fa-exchange-alt"></i>Return / Exchange
+                                        </button>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <button onclick="holdOrder()" class="w-full" style="background: white; border: 2px solid var(--warning); color: var(--warning); padding: 12px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 6px;" ${cart.length === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} onmouseover="if(!this.disabled) {this.style.background='var(--warning)'; this.style.color='white';}" onmouseout="if(!this.disabled) {this.style.background='white'; this.style.color='var(--warning)';}">
+                                                <i class="fas fa-bookmark"></i>Hold
+                                            </button>
+                                            <button onclick="clearCart()" class="w-full" style="background: white; border: 2px solid var(--gray-400); color: var(--gray-600); padding: 12px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 6px;" ${cart.length === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} onmouseover="if(!this.disabled) {this.style.background='var(--gray-200)'; this.style.borderColor='var(--gray-500)';}" onmouseout="if(!this.disabled) {this.style.background='white'; this.style.borderColor='var(--gray-400)';}">
+                                                <i class="fas fa-trash"></i>Clear
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1307,22 +1366,14 @@
                     ${POSSidebar()}
                     <main class="flex-1 p-8 overflow-y-auto animate-fade-in">
                         <div class="flex justify-between items-center mb-8">
-                            <h1 class="text-3xl font-bold text-gray-800">Products & Inventory</h1>
-                            <button onclick="showProductModal()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
-                                <i class="fas fa-plus mr-2"></i>Add Product
-                            </button>
+                            <h1 class="text-3xl font-bold text-gray-800">Products</h1>
                         </div>
                         <div class="bg-white rounded-lg shadow-sm p-6">
-                            <div class="mb-4 flex space-x-4">
-                                <input type="text" id="searchProducts" placeholder="Search products..." class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" oninput="filterProductsList(this.value)">
-                                <select class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600">
-                                    <option>All Categories</option>
-                                    <option>Electronics</option>
-                                    <option>Accessories</option>
-                                    <option>Audio</option>
-                                    <option>Storage</option>
-                                    <option>Wearables</option>
-                                </select>
+                            <div class="mb-4 relative">
+                                <input type="text" id="searchProducts" placeholder="Search products or scan barcode..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" oninput="filterProductsList(this.value)" style="padding-right: 45px;">
+                                <button type="button" onclick="scanBarcodeForProducts()" class="absolute right-3 top-1/2 transform -translate-y-1/2" style="background: transparent; border: none; cursor: pointer; color: var(--gray-500); padding: 8px; transition: color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--gray-500)'">
+                                    <i class="fas fa-barcode" style="font-size: 18px;"></i>
+                                </button>
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full" id="productsTable">
@@ -1334,7 +1385,6 @@
                                             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Price</th>
                                             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Stock</th>
                                             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Barcode</th>
-                                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-gray-200">
@@ -1354,14 +1404,6 @@
                                                     ${p.stock < 10 ? '<i class="fas fa-exclamation-triangle text-red-500 ml-2"></i>' : ''}
                                                 </td>
                                                 <td class="px-4 py-3 text-gray-600 text-sm">${p.barcode}</td>
-                                                <td class="px-4 py-3">
-                                                    <button onclick="editProduct(${p.id})" class="text-indigo-600 hover:text-indigo-800 mr-3">
-                                                        <i class="fas fa-edit"></i>
-                                                    </button>
-                                                    <button onclick="deleteProduct(${p.id})" class="text-red-600 hover:text-red-800">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
-                                                </td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -1375,46 +1417,388 @@
 
         function CustomersPage() {
             const customers = JSON.parse(localStorage.getItem('customers') || '[]');
+            const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            const selectedCustomerId = store.getState().selectedCustomerForView || null;
+            const selectedCustomer = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId) : null;
+            const customerInvoices = selectedCustomer ? invoices.filter(inv => {
+                // Match by customer name or phone
+                return inv.customer === selectedCustomer.name || inv.customerPhone === selectedCustomer.phone;
+            }) : [];
+            const selectedCustomerStatus = selectedCustomer ? getCustomerStatus(selectedCustomer.totalPurchases) : null;
+            
+            const filters = store.getState().customerFilters || {
+                status: '',
+                dateFrom: '',
+                dateTo: '',
+                purchaseAmountMin: '',
+                purchaseAmountMax: ''
+            };
+            const sort = store.getState().customerSort || {
+                field: 'totalSpent',
+                order: 'desc'
+            };
+            
+            // Calculate orders, avg order value, last purchase date for each customer
+            let customersWithStats = customers.map(c => {
+                const customerInvs = invoices.filter(inv => 
+                    inv.customer === c.name || inv.customerPhone === c.phone
+                );
+                const ordersCount = customerInvs.length;
+                const avgOrderValue = ordersCount > 0 ? c.totalPurchases / ordersCount : 0;
+                const sortedInvs = [...customerInvs].sort((a, b) => new Date(b.date) - new Date(a.date));
+                const lastPurchaseDate = sortedInvs.length > 0 ? sortedInvs[0].date : c.lastPurchase;
+                const status = getCustomerStatus(c.totalPurchases);
+                return { 
+                    ...c, 
+                    ordersCount, 
+                    avgOrderValue, 
+                    lastPurchaseDate,
+                    statusLabel: status.label,
+                    tags: c.tags || []
+                };
+            });
+            
+            // Apply filters
+            if (filters.status) {
+                customersWithStats = customersWithStats.filter(c => c.statusLabel === filters.status);
+            }
+            
+            if (filters.dateFrom || filters.dateTo) {
+                customersWithStats = customersWithStats.filter(c => {
+                    if (!c.lastPurchaseDate) return false;
+                    const purchaseDate = new Date(c.lastPurchaseDate);
+                    if (filters.dateFrom && purchaseDate < new Date(filters.dateFrom)) return false;
+                    if (filters.dateTo && purchaseDate > new Date(filters.dateTo)) return false;
+                    return true;
+                });
+            }
+            
+            if (filters.purchaseAmountMin || filters.purchaseAmountMax) {
+                customersWithStats = customersWithStats.filter(c => {
+                    if (filters.purchaseAmountMin && c.totalPurchases < parseFloat(filters.purchaseAmountMin)) return false;
+                    if (filters.purchaseAmountMax && c.totalPurchases > parseFloat(filters.purchaseAmountMax)) return false;
+                    return true;
+                });
+            }
+            
+            // Apply sorting
+            customersWithStats.sort((a, b) => {
+                let aVal, bVal;
+                switch(sort.field) {
+                    case 'totalSpent':
+                        aVal = a.totalPurchases;
+                        bVal = b.totalPurchases;
+                        break;
+                    case 'lastPurchase':
+                        aVal = a.lastPurchaseDate ? new Date(a.lastPurchaseDate).getTime() : 0;
+                        bVal = b.lastPurchaseDate ? new Date(b.lastPurchaseDate).getTime() : 0;
+                        break;
+                    case 'invoiceCount':
+                        aVal = a.ordersCount;
+                        bVal = b.ordersCount;
+                        break;
+                    case 'ltv':
+                        aVal = a.totalPurchases;
+                        bVal = b.totalPurchases;
+                        break;
+                    default:
+                        aVal = a.totalPurchases;
+                        bVal = b.totalPurchases;
+                }
+                return sort.order === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+            
             return `
                 <div class="flex">
                     ${POSSidebar()}
                     <main class="flex-1 p-8 overflow-y-auto animate-fade-in">
                         <div class="flex justify-between items-center mb-8">
                             <h1 class="text-3xl font-bold text-gray-800">Customers</h1>
-                            <button onclick="showCustomerModal()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
-                                <i class="fas fa-plus mr-2"></i>Add Customer
+                            ${selectedCustomer ? `
+                                <button onclick="clearCustomerSelection()" class="btn" style="background: var(--gray-200); color: var(--gray-800);">
+                                    <i class="fas fa-times mr-2"></i>Clear Selection
                             </button>
+                            ` : ''}
                         </div>
-                        <div class="bg-white rounded-lg shadow-sm p-6">
+                        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
                             <div class="mb-4">
-                                <input type="text" placeholder="Search customers..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600">
+                                <input type="text" id="customerSearch" placeholder="Search customers..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" oninput="filterCustomersList(this.value)">
                             </div>
-                            <div class="grid gap-4">
-                                ${customers.map(c => `
-                                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
-                                        <div class="flex items-center justify-between flex-wrap gap-4">
-                                            <div class="flex items-center space-x-4">
-                                                <div class="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                                                    ${c.name.split(' ').map(n => n[0]).join('')}
+                            
+                            <!-- Filters and Sort Section -->
+                            <div class="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <div class="flex justify-between items-center mb-3">
+                                    <h3 class="text-lg font-bold text-gray-800">Filters & Sort</h3>
+                                    <div class="flex gap-3">
+                                        <button onclick="clearCustomerFilters()" class="text-sm text-gray-600 hover:text-gray-800 font-medium">
+                                            <i class="fas fa-times mr-1"></i>Clear All
+                                        </button>
+                                        <button onclick="exportCustomersToCSV()" class="text-sm text-indigo-600 hover:text-indigo-800 font-semibold">
+                                            <i class="fas fa-download mr-1"></i>Export CSV
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap items-end gap-3">
+                                    <div class="flex-1 min-w-[120px]">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Status</label>
+                                        <select id="filterStatus" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" onchange="setCustomerFilter('status', this.value)">
+                                            <option value="">All Status</option>
+                                            <option value="New Customer" ${filters.status === 'New Customer' ? 'selected' : ''}>New Customer</option>
+                                            <option value="Regular Customer" ${filters.status === 'Regular Customer' ? 'selected' : ''}>Regular Customer</option>
+                                            <option value="VIP Customer" ${filters.status === 'VIP Customer' ? 'selected' : ''}>VIP Customer</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex-1 min-w-[140px]">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Date From</label>
+                                        <input type="date" id="filterDateFrom" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" value="${filters.dateFrom}" onchange="setCustomerFilter('dateFrom', this.value)">
+                                    </div>
+                                    <div class="flex-1 min-w-[140px]">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Date To</label>
+                                        <input type="date" id="filterDateTo" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" value="${filters.dateTo}" onchange="setCustomerFilter('dateTo', this.value)">
+                                    </div>
+                                    <div class="flex-1 min-w-[120px]">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Min Amount</label>
+                                        <input type="number" id="filterAmountMin" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" placeholder="Min" value="${filters.purchaseAmountMin}" onchange="setCustomerFilter('purchaseAmountMin', this.value)">
+                                    </div>
+                                    <div class="flex-1 min-w-[120px]">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Max Amount</label>
+                                        <input type="number" id="filterAmountMax" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" placeholder="Max" value="${filters.purchaseAmountMax}" onchange="setCustomerFilter('purchaseAmountMax', this.value)">
+                                    </div>
+                                    <div class="flex-1 min-w-[130px]">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Sort By</label>
+                                        <select id="sortField" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" onchange="setCustomerSort('field', this.value)">
+                                            <option value="totalSpent" ${sort.field === 'totalSpent' ? 'selected' : ''}>Total Spent</option>
+                                            <option value="lastPurchase" ${sort.field === 'lastPurchase' ? 'selected' : ''}>Last Purchase</option>
+                                            <option value="invoiceCount" ${sort.field === 'invoiceCount' ? 'selected' : ''}>Invoice Count</option>
+                                            <option value="ltv" ${sort.field === 'ltv' ? 'selected' : ''}>Lifetime Value</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex-1 min-w-[130px]">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Order</label>
+                                        <select id="sortOrder" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" onchange="setCustomerSort('order', this.value)">
+                                            <option value="desc" ${sort.order === 'desc' ? 'selected' : ''}>Descending</option>
+                                            <option value="asc" ${sort.order === 'asc' ? 'selected' : ''}>Ascending</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mt-3 flex justify-between items-center">
+                                    <div class="text-xs text-gray-600">
+                                        Showing ${customersWithStats.length} of ${customers.length} customers
+                                    </div>
+                                    <button onclick="applyCustomerFilters()" class="btn btn-primary" style="padding: 8px 20px; font-size: 14px;">
+                                        <i class="fas fa-check mr-2"></i>Apply
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full" id="customersTable">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">CUSTOMER</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">CONTACT</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">INVOICES</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">TOTAL SPENT</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">AVG ORDER VALUE</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">STATUS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200" id="customersList">
+                                        ${customersWithStats.map(c => {
+                                            const status = getCustomerStatus(c.totalPurchases);
+                                            const initials = c.name.split(' ').map(n => n[0]).join('').toUpperCase();
+                                            return `
+                                            <tr class="hover:bg-gray-50 transition cursor-pointer ${selectedCustomerId === c.id ? 'bg-indigo-50' : ''}" onclick="selectCustomerForView(${c.id})">
+                                                <td class="px-4 py-4">
+                                                    <div class="flex items-center space-x-3">
+                                                        <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-bold text-sm">
+                                                            ${initials}
                                                 </div>
                                                 <div>
-                                                    <div class="font-semibold text-gray-800 text-lg">${c.name}</div>
+                                                            <div class="font-semibold text-gray-800">${c.name}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-4">
+                                                    <div class="text-sm text-gray-600">${c.email}</div>
+                                                    <div class="text-sm text-gray-600">${c.phone}</div>
+                                                </td>
+                                                <td class="px-4 py-4">
+                                                    <div class="text-sm font-semibold text-gray-800">${c.ordersCount}</div>
+                                                </td>
+                                                <td class="px-4 py-4">
+                                                    <div class="text-sm font-semibold text-gray-800">${formatCurrency(c.totalPurchases)}</div>
+                                                </td>
+                                                <td class="px-4 py-4">
+                                                    <div class="text-sm font-semibold text-gray-800">${formatCurrency(c.avgOrderValue)}</div>
+                                                </td>
+                                                <td class="px-4 py-4">
+                                                    <span class="px-3 py-1 ${status.color} rounded-full text-xs font-semibold">
+                                                        ${status.label}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        ${selectedCustomer ? (() => {
+                            // Calculate analytics
+                            const sortedInvoices = [...customerInvoices].sort((a, b) => new Date(a.date) - new Date(b.date));
+                            const ltv = selectedCustomer.totalPurchases;
+                            
+                            // Last purchase date and days since
+                            const lastPurchaseDate = sortedInvoices.length > 0 ? sortedInvoices[sortedInvoices.length - 1].date : selectedCustomer.lastPurchase;
+                            const daysSinceLastPurchase = lastPurchaseDate ? Math.floor((new Date() - new Date(lastPurchaseDate)) / (1000 * 60 * 60 * 24)) : null;
+                            
+                            // Purchase frequency (average days between orders)
+                            let avgDaysBetweenOrders = null;
+                            if (sortedInvoices.length > 1) {
+                                const daysBetween = [];
+                                for (let i = 1; i < sortedInvoices.length; i++) {
+                                    const days = Math.floor((new Date(sortedInvoices[i].date) - new Date(sortedInvoices[i-1].date)) / (1000 * 60 * 60 * 24));
+                                    daysBetween.push(days);
+                                }
+                                avgDaysBetweenOrders = Math.round(daysBetween.reduce((a, b) => a + b, 0) / daysBetween.length);
+                            }
+                            
+                            // Growth trend
+                            let growthTrend = 'stable';
+                            let growthPercentage = 0;
+                            if (sortedInvoices.length >= 2) {
+                                const firstHalf = sortedInvoices.slice(0, Math.floor(sortedInvoices.length / 2));
+                                const secondHalf = sortedInvoices.slice(Math.floor(sortedInvoices.length / 2));
+                                const firstHalfAvg = firstHalf.reduce((sum, inv) => sum + inv.total, 0) / firstHalf.length;
+                                const secondHalfAvg = secondHalf.reduce((sum, inv) => sum + inv.total, 0) / secondHalf.length;
+                                if (firstHalfAvg > 0) {
+                                    growthPercentage = ((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100;
+                                    growthTrend = growthPercentage > 5 ? 'increasing' : growthPercentage < -5 ? 'decreasing' : 'stable';
+                                }
+                            }
+                            
+                            // Preferred payment method
+                            const paymentMethods = {};
+                            customerInvoices.forEach(inv => {
+                                paymentMethods[inv.payment] = (paymentMethods[inv.payment] || 0) + 1;
+                            });
+                            const preferredPayment = Object.keys(paymentMethods).length > 0 
+                                ? Object.keys(paymentMethods).reduce((a, b) => paymentMethods[a] > paymentMethods[b] ? a : b)
+                                : 'N/A';
+                            
+                            return `
+                            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                                <h2 class="text-xl font-bold text-gray-800 mb-4">Customer Analytics</h2>
+                                <div class="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
+                                    <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <div class="text-xs font-semibold text-blue-700 uppercase tracking-wide">Lifetime Value</div>
+                                            <i class="fas fa-chart-line text-blue-600"></i>
+                                        </div>
+                                        <div class="text-2xl font-bold text-blue-900">${formatCurrency(ltv)}</div>
+                                        <div class="text-xs text-blue-600 mt-1">Total revenue</div>
+                                    </div>
+                                    
+                                    <div class="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <div class="text-xs font-semibold text-green-700 uppercase tracking-wide">Purchase Frequency</div>
+                                            <i class="fas fa-calendar-alt text-green-600"></i>
+                                        </div>
+                                        <div class="text-2xl font-bold text-green-900">
+                                            ${avgDaysBetweenOrders !== null ? avgDaysBetweenOrders + ' days' : 'N/A'}
+                                        </div>
+                                        <div class="text-xs text-green-600 mt-1">Avg between orders</div>
+                                    </div>
+                                    
+                                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <div class="text-xs font-semibold text-purple-700 uppercase tracking-wide">Last Purchase</div>
+                                            <i class="fas fa-clock text-purple-600"></i>
+                                        </div>
+                                        <div class="text-lg font-bold text-purple-900">${lastPurchaseDate || 'N/A'}</div>
+                                        <div class="text-xs text-purple-600 mt-1">
+                                            ${daysSinceLastPurchase !== null ? daysSinceLastPurchase + ' days ago' : 'No purchases'}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="bg-gradient-to-br ${growthTrend === 'increasing' ? 'from-emerald-50 to-emerald-100 border-emerald-200' : growthTrend === 'decreasing' ? 'from-red-50 to-red-100 border-red-200' : 'from-gray-50 to-gray-100 border-gray-200'} p-4 rounded-lg border">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <div class="text-xs font-semibold ${growthTrend === 'increasing' ? 'text-emerald-700' : growthTrend === 'decreasing' ? 'text-red-700' : 'text-gray-700'} uppercase tracking-wide">Growth Trend</div>
+                                            <i class="fas ${growthTrend === 'increasing' ? 'fa-arrow-up text-emerald-600' : growthTrend === 'decreasing' ? 'fa-arrow-down text-red-600' : 'fa-minus text-gray-600'}"></i>
+                                        </div>
+                                        <div class="text-2xl font-bold ${growthTrend === 'increasing' ? 'text-emerald-900' : growthTrend === 'decreasing' ? 'text-red-900' : 'text-gray-900'}">
+                                            ${growthTrend === 'increasing' ? '↗' : growthTrend === 'decreasing' ? '↘' : '→'} ${Math.abs(growthPercentage).toFixed(1)}%
+                                        </div>
+                                        <div class="text-xs ${growthTrend === 'increasing' ? 'text-emerald-600' : growthTrend === 'decreasing' ? 'text-red-600' : 'text-gray-600'} mt-1 capitalize">${growthTrend}</div>
+                                    </div>
+                                    
+                                    <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 p-4 rounded-lg border border-indigo-200">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <div class="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Preferred Payment</div>
+                                            <i class="fas fa-credit-card text-indigo-600"></i>
+                                        </div>
+                                        <div class="text-lg font-bold text-indigo-900">${preferredPayment}</div>
+                                        <div class="text-xs text-indigo-600 mt-1">
+                                            ${paymentMethods[preferredPayment] || 0} of ${customerInvoices.length} invoices
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white rounded-lg shadow-sm p-6">
+                                <div class="mb-4">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <h2 class="text-xl font-bold text-gray-800">Invoices for ${selectedCustomer.name}</h2>
+                                        <span class="px-3 py-1 ${selectedCustomerStatus.color} rounded-full text-sm font-semibold">
+                                            <i class="fas ${selectedCustomerStatus.icon} mr-1"></i>${selectedCustomerStatus.label}
+                                        </span>
+                                    </div>
                                                     <div class="text-sm text-gray-600">
-                                                        <i class="fas fa-envelope mr-2"></i>${c.email}
-                                                        <i class="fas fa-phone ml-4 mr-2"></i>${c.phone}
+                                        <span><i class="fas fa-envelope mr-1"></i>${selectedCustomer.email}</span>
+                                        <span class="ml-4"><i class="fas fa-phone mr-1"></i>${selectedCustomer.phone}</span>
+                                        <span class="ml-4"><i class="fas fa-shopping-cart mr-1"></i>Total: ${formatCurrency(selectedCustomer.totalPurchases)}</span>
                                                     </div>
                                                 </div>
+                            `;
+                        })() : ''}
+                        ${selectedCustomer ? `
+                                ${customerInvoices.length > 0 ? `
+                                    <div class="space-y-3 max-h-[600px] overflow-y-auto">
+                                        ${customerInvoices.map(inv => `
+                                            <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                                                <div class="flex justify-between items-start mb-2">
+                                                    <div>
+                                                        <div class="font-semibold text-gray-800">${inv.id}</div>
+                                                        <div class="text-sm text-gray-600">${inv.date}</div>
                                             </div>
                                             <div class="text-right">
-                                                <div class="text-sm text-gray-600">Total Purchases</div>
-                                                <div class="text-xl font-bold text-green-600">${formatCurrency(c.totalPurchases)}</div>
-                                                <div class="text-xs text-gray-600 mt-1">Last: ${c.lastPurchase}</div>
+                                                        <div class="font-bold text-indigo-600">${formatCurrency(inv.total)}</div>
+                                                        <span class="px-2 py-1 ${inv.payment === 'Cash' ? 'bg-green-100 text-green-800' : inv.payment === 'UPI' ? 'bg-purple-100 text-purple-800' : inv.payment === 'Credit Note' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'} rounded-full text-xs">${inv.payment}</span>
                                             </div>
                                         </div>
+                                                <div class="text-sm text-gray-600 mt-2">
+                                                    ${inv.items.length} item${inv.items.length > 1 ? 's' : ''}
+                                                    ${inv.discount > 0 ? ` • Discount: ${formatCurrency(inv.discount)}` : ''}
+                                                </div>
+                                                <div class="flex gap-2 mt-3">
+                                                    <button onclick="viewInvoice('${inv.id}')" class="btn btn-primary" style="padding: 6px 12px; font-size: 14px; flex: 1;">
+                                                        <i class="fas fa-eye mr-1"></i>View
+                                                    </button>
+                                                    <button onclick="printInvoice('${inv.id}')" class="btn" style="background: var(--gray-200); color: var(--gray-800); padding: 6px 12px; font-size: 14px;">
+                                                        <i class="fas fa-print"></i>
+                                                    </button>
+                                                </div>
                                     </div>
                                 `).join('')}
                             </div>
+                                ` : `
+                                    <div class="text-center py-12 text-gray-500">
+                                        <i class="fas fa-file-invoice text-4xl mb-4 text-gray-300"></i>
+                                        <p>No invoices found for this customer</p>
                         </div>
+                                `}
+                            </div>
+                        ` : ''}
                     </main>
                 </div>
             `;
@@ -1452,7 +1836,7 @@
                                                 <td class="px-4 py-3 text-gray-600">${inv.date}</td>
                                                 <td class="px-4 py-3 text-gray-600">${inv.items.length} items</td>
                                                 <td class="px-4 py-3 font-semibold text-gray-800">${formatCurrency(inv.total)}</td>
-                                                <td class="px-4 py-3"><span class="px-3 py-1 ${inv.payment === 'Cash' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'} rounded-full text-sm">${inv.payment}</span></td>
+                                                <td class="px-4 py-3"><span class="px-3 py-1 ${inv.payment === 'Cash' ? 'bg-green-100 text-green-800' : inv.payment === 'UPI' ? 'bg-purple-100 text-purple-800' : inv.payment === 'Credit Note' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'} rounded-full text-sm">${inv.payment}</span></td>
                                                 <td class="px-4 py-3">
                                                     <button onclick="viewInvoice('${inv.id}')" class="text-indigo-600 hover:text-indigo-800 mr-3">
                                                         <i class="fas fa-eye"></i>
@@ -1474,6 +1858,8 @@
 
         function ReportsPage() {
             const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            const purchaseOrders = JSON.parse(localStorage.getItem('purchaseOrders') || '[]');
+            const returns = JSON.parse(localStorage.getItem('returns') || '[]');
             const products = JSON.parse(localStorage.getItem('products') || '[]');
             const customers = JSON.parse(localStorage.getItem('customers') || '[]');
             
@@ -1483,11 +1869,24 @@
                 dateTo: '',
                 paymentMethod: '',
                 customer: '',
+                orderType: 'all',
                 quickFilter: 'all'
             };
             
+            // Combine all transactions with type labels
+            let allTransactions = [
+                ...invoices.map(inv => ({ ...inv, transactionType: 'sale', typeLabel: 'Sale' })),
+                ...purchaseOrders.map(po => ({ ...po, transactionType: 'purchase', typeLabel: 'Purchase', customer: po.supplier || 'N/A', payment: 'N/A', discount: 0, tax: 0 })),
+                ...returns.map(ret => ({ ...ret, transactionType: 'return', typeLabel: ret.type === 'return' ? 'Return' : 'Exchange', payment: 'N/A', discount: 0, tax: 0 }))
+            ];
+            
             // Apply filters
-            let filteredInvoices = [...invoices];
+            let filteredTransactions = [...allTransactions];
+            
+            // Order type filter
+            if (filters.orderType !== 'all') {
+                filteredTransactions = filteredTransactions.filter(t => t.transactionType === filters.orderType);
+            }
             
             // Quick filter presets
             if (filters.quickFilter !== 'all') {
@@ -1495,89 +1894,114 @@
                 const todayStr = today.toISOString().split('T')[0];
                 
                 if (filters.quickFilter === 'today') {
-                    filteredInvoices = filteredInvoices.filter(inv => inv.date === todayStr);
+                    filteredTransactions = filteredTransactions.filter(t => t.date === todayStr);
                 } else if (filters.quickFilter === 'week') {
                     const weekAgo = new Date(today);
                     weekAgo.setDate(today.getDate() - 7);
-                    filteredInvoices = filteredInvoices.filter(inv => {
-                        const invDate = new Date(inv.date);
-                        return invDate >= weekAgo && invDate <= today;
+                    filteredTransactions = filteredTransactions.filter(t => {
+                        const tDate = new Date(t.date);
+                        return tDate >= weekAgo && tDate <= today;
                     });
                 } else if (filters.quickFilter === 'month') {
                     const monthAgo = new Date(today);
                     monthAgo.setMonth(today.getMonth() - 1);
-                    filteredInvoices = filteredInvoices.filter(inv => {
-                        const invDate = new Date(inv.date);
-                        return invDate >= monthAgo && invDate <= today;
+                    filteredTransactions = filteredTransactions.filter(t => {
+                        const tDate = new Date(t.date);
+                        return tDate >= monthAgo && tDate <= today;
                     });
                 } else if (filters.quickFilter === 'year') {
                     const yearAgo = new Date(today);
                     yearAgo.setFullYear(today.getFullYear() - 1);
-                    filteredInvoices = filteredInvoices.filter(inv => {
-                        const invDate = new Date(inv.date);
-                        return invDate >= yearAgo && invDate <= today;
+                    filteredTransactions = filteredTransactions.filter(t => {
+                        const tDate = new Date(t.date);
+                        return tDate >= yearAgo && tDate <= today;
                     });
                 }
             }
             
             // Date range filter
             if (filters.dateFrom) {
-                filteredInvoices = filteredInvoices.filter(inv => inv.date >= filters.dateFrom);
+                filteredTransactions = filteredTransactions.filter(t => t.date >= filters.dateFrom);
             }
             if (filters.dateTo) {
-                filteredInvoices = filteredInvoices.filter(inv => inv.date <= filters.dateTo);
+                filteredTransactions = filteredTransactions.filter(t => t.date <= filters.dateTo);
             }
             
-            // Payment method filter
+            // Payment method filter (only for sales)
             if (filters.paymentMethod) {
-                filteredInvoices = filteredInvoices.filter(inv => inv.payment === filters.paymentMethod);
-            }
-            
-            // Customer filter
-            if (filters.customer) {
-                filteredInvoices = filteredInvoices.filter(inv => inv.customer === filters.customer);
+                filteredTransactions = filteredTransactions.filter(t => t.payment === filters.paymentMethod);
             }
             
             // Calculate statistics from filtered data
-            const totalSales = filteredInvoices.reduce((sum, inv) => sum + inv.total, 0);
-            const totalDiscounts = filteredInvoices.reduce((sum, inv) => sum + (inv.discount || 0), 0);
-            const totalTax = filteredInvoices.reduce((sum, inv) => sum + inv.tax, 0);
-            const totalItemsSold = filteredInvoices.reduce((sum, inv) => sum + inv.items.reduce((itemSum, item) => itemSum + item.qty, 0), 0);
+            const salesTransactions = filteredTransactions.filter(t => t.transactionType === 'sale');
+            const purchaseTransactions = filteredTransactions.filter(t => t.transactionType === 'purchase');
+            const returnTransactions = filteredTransactions.filter(t => t.transactionType === 'return');
+            
+            const totalSales = salesTransactions.reduce((sum, t) => sum + t.total, 0);
+            const totalPurchases = purchaseTransactions.reduce((sum, t) => sum + t.total, 0);
+            const totalReturns = returnTransactions.reduce((sum, t) => sum + t.total, 0);
+            const totalDiscounts = salesTransactions.reduce((sum, t) => sum + (t.discount || 0), 0);
+            const totalTax = salesTransactions.reduce((sum, t) => sum + (t.tax || 0), 0);
+            const totalItemsSold = salesTransactions.reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.qty, 0), 0);
             
             // Today's sales
             const today = new Date().toISOString().split('T')[0];
-            const todayInvoices = filteredInvoices.filter(inv => inv.date === today);
-            const todaySales = todayInvoices.reduce((sum, inv) => sum + inv.total, 0);
+            const todaySales = salesTransactions.filter(t => t.date === today).reduce((sum, t) => sum + t.total, 0);
+            const todayInvoices = salesTransactions.filter(t => t.date === today);
             
-            // Top selling products
+            // Top selling products (only from sales)
             const productSales = {};
-            filteredInvoices.forEach(inv => {
-                inv.items.forEach(item => {
+            salesTransactions.forEach(t => {
+                t.items.forEach(item => {
                     if (!productSales[item.name]) {
                         productSales[item.name] = { name: item.name, qty: 0, revenue: 0 };
                     }
                     productSales[item.name].qty += item.qty;
-                    productSales[item.name].revenue += item.qty * item.price;
+                    productSales[item.name].revenue += item.qty * (item.price || 0);
                 });
             });
             const topProducts = Object.values(productSales).sort((a, b) => b.qty - a.qty).slice(0, 5);
             
-            // Payment methods
+            // Payment methods (only for sales)
             const paymentMethods = {};
-            filteredInvoices.forEach(inv => {
-                paymentMethods[inv.payment] = (paymentMethods[inv.payment] || 0) + inv.total;
+            salesTransactions.forEach(t => {
+                if (t.payment && t.payment !== 'N/A') {
+                    paymentMethods[t.payment] = (paymentMethods[t.payment] || 0) + t.total;
+                }
             });
             
-            // Get unique customers and payment methods for filters
-            const uniqueCustomers = [...new Set(invoices.map(inv => inv.customer))];
-            const uniquePaymentMethods = [...new Set(invoices.map(inv => inv.payment))];
+            // Ensure standard payment methods are always included even if no transactions
+            const standardPaymentMethods = ['Cash', 'Card', 'UPI', 'Credit Note'];
+            standardPaymentMethods.forEach(method => {
+                if (!paymentMethods[method]) {
+                    paymentMethods[method] = 0;
+                }
+            });
+            
+            // Get unique payment methods for filters (only from sales)
+            const uniquePaymentMethods = [...new Set(invoices.map(inv => inv.payment).filter(p => p))];
+            // Ensure standard payment methods are in the filter list
+            standardPaymentMethods.forEach(method => {
+                if (!uniquePaymentMethods.includes(method)) {
+                    uniquePaymentMethods.push(method);
+                }
+            });
+            // Sort payment methods: standard methods first, then others
+            uniquePaymentMethods.sort((a, b) => {
+                const aIndex = standardPaymentMethods.indexOf(a);
+                const bIndex = standardPaymentMethods.indexOf(b);
+                if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+                if (aIndex !== -1) return -1;
+                if (bIndex !== -1) return 1;
+                return a.localeCompare(b);
+            });
             
             return `
                 <div class="flex">
                     ${POSSidebar()}
                     <main class="flex-1 p-8 overflow-y-auto animate-fade-in">
                         <div class="flex justify-between items-center mb-6">
-                            <h1 style="font-size: 2.5rem; font-weight: 700;">Sales Reports</h1>
+                            <h1 style="font-size: 2.5rem; font-weight: 700;">Reports</h1>
                             <button onclick="exportReport()" class="btn btn-primary">
                                 <i class="fas fa-download mr-2"></i>Export Report
                             </button>
@@ -1591,7 +2015,16 @@
                                     <i class="fas fa-times mr-1"></i>Clear All
                                 </button>
                             </div>
-                            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                            <div class="grid md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Order Type</label>
+                                    <select id="orderType" class="input-field" onchange="setReportFilter('orderType', this.value)">
+                                        <option value="all" ${filters.orderType === 'all' ? 'selected' : ''}>All Types</option>
+                                        <option value="sale" ${filters.orderType === 'sale' ? 'selected' : ''}>Sale</option>
+                                        <option value="purchase" ${filters.orderType === 'purchase' ? 'selected' : ''}>Purchase</option>
+                                        <option value="return" ${filters.orderType === 'return' ? 'selected' : ''}>Return/Exchange</option>
+                                    </select>
+                                </div>
                                 <div>
                                     <label class="block text-sm font-semibold text-gray-700 mb-2">Quick Filter</label>
                                     <select id="quickFilter" class="input-field" onchange="setReportFilter('quickFilter', this.value)">
@@ -1620,20 +2053,9 @@
                                     </select>
                                 </div>
                             </div>
-                            <div class="grid md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Customer</label>
-                                    <select id="customerFilter" class="input-field" onchange="setReportFilter('customer', this.value)">
-                                        <option value="">All Customers</option>
-                                        ${uniqueCustomers.map(cust => `
-                                            <option value="${cust}" ${filters.customer === cust ? 'selected' : ''}>${cust}</option>
-                                        `).join('')}
-                                    </select>
-                                </div>
-                                <div class="flex items-end">
-                                    <div class="text-small text-muted">
-                                        Showing ${filteredInvoices.length} of ${invoices.length} transactions
-                                    </div>
+                            <div class="flex items-end">
+                                <div class="text-small text-muted">
+                                    Showing ${filteredTransactions.length} of ${allTransactions.length} transactions
                                 </div>
                             </div>
                         </div>
@@ -1684,8 +2106,17 @@
                             <div class="card">
                                 <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem;">Payment Methods</h2>
                                 <div class="space-y-3">
-                                    ${Object.entries(paymentMethods).map(([method, amount]) => {
-                                        const percentage = ((amount / totalSales) * 100).toFixed(1);
+                                    ${Object.entries(paymentMethods).sort((a, b) => {
+                                        // Sort by amount (descending), but ensure Cash, Card, UPI, Credit Note order
+                                        const order = ['Cash', 'Card', 'UPI', 'Credit Note'];
+                                        const aIndex = order.indexOf(a[0]);
+                                        const bIndex = order.indexOf(b[0]);
+                                        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+                                        if (aIndex !== -1) return -1;
+                                        if (bIndex !== -1) return 1;
+                                        return b[1] - a[1];
+                                    }).map(([method, amount]) => {
+                                        const percentage = totalSales > 0 ? ((amount / totalSales) * 100).toFixed(1) : '0.0';
                                         return `
                                             <div>
                                                 <div class="flex justify-between mb-2">
@@ -1704,13 +2135,14 @@
                         </div>
 
                         <div class="card">
-                            <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem;">Transactions ${filters.quickFilter !== 'all' || filters.dateFrom || filters.dateTo || filters.paymentMethod || filters.customer ? '(Filtered)' : ''}</h2>
+                            <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem;">Transactions ${filters.quickFilter !== 'all' || filters.dateFrom || filters.dateTo || filters.paymentMethod || filters.orderType !== 'all' ? '(Filtered)' : ''}</h2>
                             <div class="overflow-x-auto">
                                 <table class="w-full">
                                     <thead>
                                         <tr>
-                                            <th class="table-header">Invoice ID</th>
-                                            <th class="table-header">Customer</th>
+                                            <th class="table-header">Type</th>
+                                            <th class="table-header">ID</th>
+                                            <th class="table-header">Customer/Supplier</th>
                                             <th class="table-header">Date</th>
                                             <th class="table-header">Items</th>
                                             <th class="table-header">Discount</th>
@@ -1719,19 +2151,26 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${filteredInvoices.length > 0 ? filteredInvoices.slice(-50).reverse().map(inv => `
+                                        ${filteredTransactions.length > 0 ? filteredTransactions.slice(-50).reverse().map(t => `
                                             <tr class="hover:bg-gray-50">
-                                                <td class="table-cell" style="font-weight: 600;">${inv.id}</td>
-                                                <td class="table-cell">${inv.customer}</td>
-                                                <td class="table-cell text-muted">${inv.date}</td>
-                                                <td class="table-cell text-muted">${inv.items.length} items</td>
-                                                <td class="table-cell">${inv.discount > 0 ? `<span style="color: var(--success);">-${formatCurrency(inv.discount)}</span>` : '-'}</td>
-                                                <td class="table-cell" style="font-weight: 600;">${formatCurrency(inv.total)}</td>
-                                                <td class="table-cell"><span class="badge ${inv.payment === 'Cash' ? 'badge-success' : 'badge-primary'}">${inv.payment}</span></td>
+                                                <td class="table-cell">
+                                                    <span class="badge ${t.transactionType === 'sale' ? 'badge-success' : t.transactionType === 'purchase' ? 'badge-primary' : 'badge-danger'}">
+                                                        ${t.typeLabel}
+                                                    </span>
+                                                </td>
+                                                <td class="table-cell" style="font-weight: 600;">${t.id}</td>
+                                                <td class="table-cell">${t.customer || t.supplier || 'N/A'}</td>
+                                                <td class="table-cell text-muted">${t.date}</td>
+                                                <td class="table-cell text-muted">${t.items.length} items</td>
+                                                <td class="table-cell">${t.discount > 0 ? `<span style="color: var(--success);">-${formatCurrency(t.discount)}</span>` : '-'}</td>
+                                                <td class="table-cell" style="font-weight: 600; ${t.transactionType === 'return' ? 'color: var(--danger);' : ''}">${formatCurrency(t.total)}</td>
+                                                <td class="table-cell">
+                                                    ${t.payment && t.payment !== 'N/A' ? `<span class="badge ${t.payment === 'Cash' ? 'badge-success' : t.payment === 'UPI' ? 'bg-purple-100 text-purple-800' : t.payment === 'Credit Note' ? 'bg-emerald-100 text-emerald-800' : 'badge-primary'}">${t.payment}</span>` : '-'}
+                                                </td>
                                             </tr>
                                         `).join('') : `
                                             <tr>
-                                                <td colspan="7" class="table-cell text-center text-muted py-8">
+                                                <td colspan="8" class="table-cell text-center text-muted py-8">
                                                     No transactions found matching the selected filters
                                                 </td>
                                             </tr>
@@ -1749,6 +2188,135 @@
             const purchaseOrders = JSON.parse(localStorage.getItem('purchaseOrders') || '[]');
             const returns = JSON.parse(localStorage.getItem('returns') || '[]');
             const products = JSON.parse(localStorage.getItem('products') || '[]');
+            const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            
+            // Get filter values from state
+            const filters = store.getState().inventoryFilters || {
+                poStatus: '',
+                poDateFrom: '',
+                poDateTo: '',
+                poSupplier: '',
+                poAmountMin: '',
+                poAmountMax: '',
+                poSearch: '',
+                returnStatus: '',
+                returnType: '',
+                returnDateFrom: '',
+                returnDateTo: '',
+                returnCustomer: '',
+                returnAmountMin: '',
+                returnAmountMax: '',
+                returnSearch: ''
+            };
+            
+            // Get unique suppliers for filters
+            const uniqueSuppliers = [...new Set(purchaseOrders.map(po => po.supplier).filter(s => s))];
+            
+            // Apply filters to purchase orders
+            let filteredPOs = [...purchaseOrders];
+            if (filters.poStatus) {
+                filteredPOs = filteredPOs.filter(po => po.status === filters.poStatus);
+            }
+            if (filters.poDateFrom) {
+                filteredPOs = filteredPOs.filter(po => po.date >= filters.poDateFrom);
+            }
+            if (filters.poDateTo) {
+                filteredPOs = filteredPOs.filter(po => po.date <= filters.poDateTo);
+            }
+            if (filters.poSupplier) {
+                filteredPOs = filteredPOs.filter(po => po.supplier === filters.poSupplier);
+            }
+            // Apply search filter
+            if (filters.poSearch && filters.poSearch.trim()) {
+                const searchTerm = filters.poSearch.toLowerCase().trim();
+                filteredPOs = filteredPOs.filter(po => {
+                    // Search in PO ID
+                    if (po.id.toLowerCase().includes(searchTerm)) return true;
+                    // Search in supplier name
+                    if (po.supplier && po.supplier.toLowerCase().includes(searchTerm)) return true;
+                    // Search in date
+                    if (po.date && po.date.includes(searchTerm)) return true;
+                    // Search in items
+                    if (po.items && po.items.some(item => item.name.toLowerCase().includes(searchTerm))) return true;
+                    return false;
+                });
+            }
+            
+            // Apply filters to returns/exchanges
+            let filteredReturns = [...returns];
+            if (filters.returnStatus) {
+                filteredReturns = filteredReturns.filter(ret => ret.status === filters.returnStatus);
+            }
+            if (filters.returnType) {
+                filteredReturns = filteredReturns.filter(ret => ret.type === filters.returnType);
+            }
+            if (filters.returnDateFrom) {
+                filteredReturns = filteredReturns.filter(ret => ret.date >= filters.returnDateFrom);
+            }
+            if (filters.returnDateTo) {
+                filteredReturns = filteredReturns.filter(ret => ret.date <= filters.returnDateTo);
+            }
+            // Apply search filter
+            if (filters.returnSearch && filters.returnSearch.trim()) {
+                const searchTerm = filters.returnSearch.toLowerCase().trim();
+                filteredReturns = filteredReturns.filter(ret => {
+                    // Search in return ID
+                    if (ret.id.toLowerCase().includes(searchTerm)) return true;
+                    // Search in invoice ID
+                    if (ret.invoiceId && ret.invoiceId.toLowerCase().includes(searchTerm)) return true;
+                    // Search in customer name
+                    if (ret.customer && ret.customer.toLowerCase().includes(searchTerm)) return true;
+                    // Search in date
+                    if (ret.date && ret.date.includes(searchTerm)) return true;
+                    // Search in items
+                    if (ret.items && ret.items.some(item => item.name.toLowerCase().includes(searchTerm))) return true;
+                    // Search in reason
+                    if (ret.items && ret.items.some(item => item.reason && item.reason.toLowerCase().includes(searchTerm))) return true;
+                    return false;
+                });
+            }
+            
+            // Calculate total stock value
+            const totalStockValue = products.reduce((sum, product) => {
+                return sum + (product.stock * product.price);
+            }, 0);
+            
+            // Calculate total number of products
+            const totalProducts = products.length;
+            const totalStockUnits = products.reduce((sum, product) => sum + product.stock, 0);
+            
+            // Identify slow-moving/not-moving stock
+            // Products that haven't been sold in the last 90 days
+            const today = new Date();
+            const ninetyDaysAgo = new Date(today);
+            ninetyDaysAgo.setDate(today.getDate() - 90);
+            
+            // Get all product sales in the last 90 days
+            const recentSales = {};
+            invoices.forEach(inv => {
+                const invDate = new Date(inv.date);
+                if (invDate >= ninetyDaysAgo) {
+                    inv.items.forEach(item => {
+                        if (!recentSales[item.name]) {
+                            recentSales[item.name] = 0;
+                        }
+                        recentSales[item.name] += item.qty;
+                    });
+                }
+            });
+            
+            // Identify slow-moving products (no sales in last 90 days but have stock)
+            const slowMovingProducts = products.filter(product => {
+                const hasRecentSales = recentSales[product.name] > 0;
+                return !hasRecentSales && product.stock > 0;
+            }).map(product => ({
+                ...product,
+                stockValue: product.stock * product.price,
+                daysSinceLastSale: '90+ days'
+            }));
+            
+            // Sort by stock value (highest first) to prioritize high-value dead stock
+            slowMovingProducts.sort((a, b) => b.stockValue - a.stockValue);
             
             return `
                 <div class="flex">
@@ -1756,14 +2324,14 @@
                     <main class="flex-1 p-8 overflow-y-auto animate-fade-in">
                         <div class="flex justify-between items-center mb-8">
                             <h1 style="font-size: 2.5rem; font-weight: 700;">Inventory Management</h1>
-                            <div class="flex gap-2">
-                                <button onclick="showPurchaseOrderModal()" class="btn btn-primary">
-                                    <i class="fas fa-plus mr-2"></i>New Purchase Order
-                                </button>
-                            </div>
                         </div>
 
-                        <div class="grid md:grid-cols-2 gap-6 mb-8">
+                        <div class="grid md:grid-cols-4 gap-6 mb-8">
+                            <div class="stat-card">
+                                <div class="stat-label">Total Stock Value</div>
+                                <div class="stat-value" style="color: var(--primary);">${formatCurrency(totalStockValue)}</div>
+                                <div class="text-small mt-2">${totalStockUnits} units across ${totalProducts} products</div>
+                            </div>
                             <div class="stat-card">
                                 <div class="stat-label">Total Purchase Orders</div>
                                 <div class="stat-value" style="color: var(--primary);">${purchaseOrders.length}</div>
@@ -1774,19 +2342,73 @@
                                 <div class="stat-value" style="color: var(--danger);">${returns.length}</div>
                                 <div class="text-small mt-2">${returns.filter(r => r.status === 'pending').length} pending</div>
                             </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Slow-Moving Stock</div>
+                                <div class="stat-value" style="color: var(--warning);">${slowMovingProducts.length}</div>
+                                <div class="text-small mt-2">${formatCurrency(slowMovingProducts.reduce((sum, p) => sum + p.stockValue, 0))} tied up</div>
+                            </div>
                         </div>
 
-                        <div class="grid md:grid-cols-2 gap-6">
+                        <div class="grid md:grid-cols-2 gap-6 mb-8">
                             <!-- Purchase Orders Section -->
                             <div class="card">
-                                <div class="flex justify-between items-center mb-6">
+                                <div class="flex justify-between items-center mb-4">
                                     <h2 style="font-size: 1.5rem; font-weight: 600;">Purchase Orders</h2>
                                     <button onclick="showPurchaseOrderModal()" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
                                         <i class="fas fa-plus mr-1"></i>New PO
                                     </button>
                                 </div>
+                                
+                                <!-- PO Search Bar -->
+                                <div class="mb-4">
+                                    <div class="relative">
+                                        <input type="text" id="poSearch" placeholder="Search by PO ID, supplier, date, or items..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" value="${filters.poSearch || ''}" oninput="filterPurchaseOrders(this.value)" style="padding-right: 40px;">
+                                        <i class="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                                    </div>
+                                </div>
+                                
+                                <!-- PO Filters -->
+                                <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <h3 class="text-sm font-semibold text-gray-700">Filters</h3>
+                                        <button onclick="clearPOFilters()" class="text-xs text-gray-600 hover:text-gray-800">
+                                            <i class="fas fa-times mr-1"></i>Clear
+                                        </button>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+                                            <select id="poStatusFilter" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-indigo-600" onchange="setInventoryFilter('poStatus', this.value)">
+                                                <option value="">All</option>
+                                                <option value="pending" ${filters.poStatus === 'pending' ? 'selected' : ''}>Pending</option>
+                                                <option value="completed" ${filters.poStatus === 'completed' ? 'selected' : ''}>Completed</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Supplier</label>
+                                            <select id="poSupplierFilter" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-indigo-600" onchange="setInventoryFilter('poSupplier', this.value)">
+                                                <option value="">All Suppliers</option>
+                                                ${uniqueSuppliers.map(supplier => `
+                                                    <option value="${supplier}" ${filters.poSupplier === supplier ? 'selected' : ''}>${supplier}</option>
+                                                `).join('')}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Date From</label>
+                                            <input type="date" id="poDateFromFilter" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-indigo-600" value="${filters.poDateFrom}" onchange="setInventoryFilter('poDateFrom', this.value)">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Date To</label>
+                                            <input type="date" id="poDateToFilter" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-indigo-600" value="${filters.poDateTo}" onchange="setInventoryFilter('poDateTo', this.value)">
+                                        </div>
+                                    </div>
+                                    <div class="mt-2 text-xs text-gray-600">
+                                        Showing ${filteredPOs.length} of ${purchaseOrders.length} orders
+                                    </div>
+                                </div>
+                                
                                 <div class="space-y-4 max-h-[600px] overflow-y-auto">
-                                    ${purchaseOrders.length > 0 ? purchaseOrders.map(po => `
+                                    ${filteredPOs.length > 0 ? filteredPOs.map(po => `
                                         <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
                                             <div class="flex justify-between items-start mb-3">
                                                 <div>
@@ -1816,9 +2438,6 @@
                                                         <i class="fas fa-check mr-1"></i>Complete
                                                     </button>
                                                 ` : ''}
-                                                <button onclick="deletePurchaseOrder('${po.id}')" class="btn" style="background: var(--danger); color: white; padding: 6px 12px; font-size: 14px;">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
                                             </div>
                                         </div>
                                     `).join('') : '<p class="text-muted text-center py-8">No purchase orders found</p>'}
@@ -1827,14 +2446,62 @@
 
                             <!-- Returns & Exchanges Section -->
                             <div class="card">
-                                <div class="flex justify-between items-center mb-6">
+                                <div class="flex justify-between items-center mb-4">
                                     <h2 style="font-size: 1.5rem; font-weight: 600;">Returns & Exchanges</h2>
                                     <button onclick="showReturnExchangeModal()" class="btn" style="background: var(--info); color: white; padding: 8px 16px; font-size: 14px;">
                                         <i class="fas fa-exchange-alt mr-1"></i>New Return
                                     </button>
                                 </div>
+                                
+                                <!-- Return Search Bar -->
+                                <div class="mb-4">
+                                    <div class="relative">
+                                        <input type="text" id="returnSearch" placeholder="Search by return ID, invoice ID, customer, date, or items..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" value="${filters.returnSearch || ''}" oninput="filterReturnsExchanges(this.value)" style="padding-right: 40px;">
+                                        <i class="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                                    </div>
+                                </div>
+                                
+                                <!-- Return Filters -->
+                                <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <h3 class="text-sm font-semibold text-gray-700">Filters</h3>
+                                        <button onclick="clearReturnFilters()" class="text-xs text-gray-600 hover:text-gray-800">
+                                            <i class="fas fa-times mr-1"></i>Clear
+                                        </button>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+                                            <select id="returnStatusFilter" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-indigo-600" onchange="setInventoryFilter('returnStatus', this.value)">
+                                                <option value="">All</option>
+                                                <option value="pending" ${filters.returnStatus === 'pending' ? 'selected' : ''}>Pending</option>
+                                                <option value="completed" ${filters.returnStatus === 'completed' ? 'selected' : ''}>Completed</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Type</label>
+                                            <select id="returnTypeFilter" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-indigo-600" onchange="setInventoryFilter('returnType', this.value)">
+                                                <option value="">All Types</option>
+                                                <option value="return" ${filters.returnType === 'return' ? 'selected' : ''}>Return</option>
+                                                <option value="exchange" ${filters.returnType === 'exchange' ? 'selected' : ''}>Exchange</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Date From</label>
+                                            <input type="date" id="returnDateFromFilter" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-indigo-600" value="${filters.returnDateFrom}" onchange="setInventoryFilter('returnDateFrom', this.value)">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-600 mb-1">Date To</label>
+                                            <input type="date" id="returnDateToFilter" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-indigo-600" value="${filters.returnDateTo}" onchange="setInventoryFilter('returnDateTo', this.value)">
+                                        </div>
+                                    </div>
+                                    <div class="mt-2 text-xs text-gray-600">
+                                        Showing ${filteredReturns.length} of ${returns.length} returns/exchanges
+                                    </div>
+                                </div>
+                                
                                 <div class="space-y-4 max-h-[600px] overflow-y-auto">
-                                    ${returns.length > 0 ? returns.map(ret => `
+                                    ${filteredReturns.length > 0 ? filteredReturns.map(ret => `
                                         <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
                                             <div class="flex justify-between items-start mb-3">
                                                 <div>
@@ -1870,6 +2537,138 @@
                                         </div>
                                     `).join('') : '<p class="text-muted text-center py-8">No returns/exchanges found</p>'}
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Slow-Moving Stock Section -->
+                        ${slowMovingProducts.length > 0 ? `
+                            <div class="card mb-8">
+                                <div class="flex justify-between items-center mb-6">
+                                    <div>
+                                        <h2 style="font-size: 1.5rem; font-weight: 600;">Slow-Moving / Not-Moving Stock</h2>
+                                        <p class="text-small text-gray-600 mt-1">Products with no sales in the last 90 days</p>
+                                    </div>
+                                    <button onclick="exportSlowMovingStock()" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                                        <i class="fas fa-download mr-2"></i>Export Data
+                                    </button>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full">
+                                        <thead>
+                                            <tr>
+                                                <th class="table-header">Product</th>
+                                                <th class="table-header">SKU</th>
+                                                <th class="table-header">Category</th>
+                                                <th class="table-header">Current Stock</th>
+                                                <th class="table-header">Unit Price</th>
+                                                <th class="table-header">Stock Value</th>
+                                                <th class="table-header">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${slowMovingProducts.map(product => `
+                                                <tr class="hover:bg-gray-50">
+                                                    <td class="table-cell">
+                                                        <div class="flex items-center space-x-3">
+                                                            <span class="text-2xl">${product.image}</span>
+                                                            <span class="font-semibold text-gray-800">${product.name}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td class="table-cell text-gray-600">${product.sku}</td>
+                                                    <td class="table-cell">
+                                                        <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">${product.category}</span>
+                                                    </td>
+                                                    <td class="table-cell">
+                                                        <span class="font-bold text-orange-600">${product.stock}</span>
+                                                    </td>
+                                                    <td class="table-cell font-semibold text-gray-800">${formatCurrency(product.price)}</td>
+                                                    <td class="table-cell font-bold text-orange-600">${formatCurrency(product.stockValue)}</td>
+                                                    <td class="table-cell">
+                                                        <span class="badge badge-warning">Not Moving</span>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ` : `
+                            <div class="card mb-8">
+                                <div class="text-center py-8">
+                                    <i class="fas fa-check-circle text-4xl text-green-500 mb-4"></i>
+                                    <h2 style="font-size: 1.25rem; font-weight: 600; color: var(--gray-800);">All Stock is Moving Well!</h2>
+                                    <p class="text-small text-gray-600 mt-2">No products identified as slow-moving in the last 90 days.</p>
+                                </div>
+                            </div>
+                        `}
+
+                        <!-- All Stock Data Section -->
+                        <div class="card mb-8">
+                            <div class="flex justify-between items-center mb-6">
+                                <div>
+                                    <h2 style="font-size: 1.5rem; font-weight: 600;">All Stock Data</h2>
+                                    <p class="text-small text-gray-600 mt-1">Complete inventory overview with stock levels and values</p>
+                                </div>
+                                <button onclick="exportAllStockData()" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                                    <i class="fas fa-download mr-2"></i>Export Data
+                                </button>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <div class="relative">
+                                    <input type="text" id="stockSearch" placeholder="Search products by name, SKU, or barcode..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" oninput="filterStockData(this.value)" style="padding-right: 45px;">
+                                    <button type="button" onclick="scanBarcodeForStock()" class="absolute right-3 top-1/2 transform -translate-y-1/2" style="background: transparent; border: none; cursor: pointer; color: var(--gray-500); padding: 8px; transition: color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--gray-500)'">
+                                        <i class="fas fa-barcode" style="font-size: 18px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="overflow-x-auto">
+                                <table class="w-full" id="stockDataTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="table-header">Product</th>
+                                            <th class="table-header">SKU</th>
+                                            <th class="table-header">Category</th>
+                                            <th class="table-header">Current Stock</th>
+                                            <th class="table-header">Unit Price</th>
+                                            <th class="table-header">Stock Value</th>
+                                            <th class="table-header">Barcode</th>
+                                            <th class="table-header">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${products.map(product => {
+                                            const stockValue = product.stock * product.price;
+                                            const stockStatus = product.stock === 0 ? 'out' : product.stock < 10 ? 'low' : 'good';
+                                            return `
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="table-cell">
+                                                    <div class="flex items-center space-x-3">
+                                                        <span class="text-2xl">${product.image}</span>
+                                                        <span class="font-semibold text-gray-800">${product.name}</span>
+                                                    </div>
+                                                </td>
+                                                <td class="table-cell text-gray-600">${product.sku}</td>
+                                                <td class="table-cell">
+                                                    <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">${product.category}</span>
+                                                </td>
+                                                <td class="table-cell">
+                                                    <span class="font-bold ${stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-orange-600' : 'text-green-600'}">${product.stock}</span>
+                                                </td>
+                                                <td class="table-cell font-semibold text-gray-800">${formatCurrency(product.price)}</td>
+                                                <td class="table-cell font-bold text-gray-800">${formatCurrency(stockValue)}</td>
+                                                <td class="table-cell text-gray-600 text-sm">${product.barcode}</td>
+                                                <td class="table-cell">
+                                                    ${stockStatus === 'out' ? '<span class="badge badge-danger">Out of Stock</span>' : 
+                                                      stockStatus === 'low' ? '<span class="badge badge-warning">Low Stock</span>' : 
+                                                      '<span class="badge badge-success">In Stock</span>'}
+                                                </td>
+                                            </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </main>
@@ -1909,18 +2708,6 @@
                             </div>
 
                             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-                                <h2 class="text-xl font-bold mb-4 text-gray-800">Appearance</h2>
-                                <div class="space-y-4">
-                                    <div class="flex items-center justify-between">
-                                        <div>
-                                            <div class="font-medium text-gray-800">Dark Mode</div>
-                                            <div class="text-sm text-gray-600">Toggle dark/light theme</div>
-                                        </div>
-                                        <button onclick="store.toggleTheme()" class="px-6 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition">
-                                            <i class="fas fa-moon mr-2"></i>Toggle
-                                        </button>
-                                    </div>
-                                </div>
                             </div>
 
                             <div class="bg-white rounded-lg shadow-sm p-6">
@@ -1975,6 +2762,56 @@
 
         function clearCart() {
             store.setState({ cart: [], discount: 0, selectedCustomer: null });
+            // Clear customer info display
+            if (document.getElementById('displayName')) {
+                document.getElementById('displayName').textContent = 'Walk-in Customer';
+                document.getElementById('displayMobile').textContent = '-';
+                document.getElementById('displayEmail').textContent = '-';
+            }
+        }
+
+        function toggleCustomerForm() {
+            const form = document.getElementById('customerForm');
+            const display = document.getElementById('customerDisplay');
+            const btn = document.getElementById('toggleCustomerBtn');
+            
+            if (form.classList.contains('hidden')) {
+                form.classList.remove('hidden');
+                display.classList.add('hidden');
+                btn.innerHTML = '<i class="fas fa-times mr-1"></i>Cancel';
+            } else {
+                form.classList.add('hidden');
+                display.classList.remove('hidden');
+                btn.innerHTML = '<i class="fas fa-edit mr-1"></i>Edit';
+                // Clear form
+                document.getElementById('customerName').value = '';
+                document.getElementById('customerMobile').value = '';
+                document.getElementById('customerEmail').value = '';
+            }
+        }
+
+        function saveCustomerInfo() {
+            const name = document.getElementById('customerName').value.trim();
+            const mobile = document.getElementById('customerMobile').value.trim();
+            const email = document.getElementById('customerEmail').value.trim();
+            
+            if (!name || !mobile) {
+                alert('Please enter customer name and mobile number');
+                return;
+            }
+            
+            // Update display
+            document.getElementById('displayName').textContent = name;
+            document.getElementById('displayMobile').textContent = mobile;
+            document.getElementById('displayEmail').textContent = email || '-';
+            
+            // Store in state
+            store.setState({ 
+                customerInfo: { name, mobile, email }
+            });
+            
+            // Hide form and show display
+            toggleCustomerForm();
         }
 
         function selectCustomer(customerId) {
@@ -2037,15 +2874,14 @@
             
             if (cart.length === 0) return;
             
-            const customers = JSON.parse(localStorage.getItem('customers') || '[]');
-            const customer = selectedCustomer ? customers.find(c => c.id === selectedCustomer) : null;
-            const customerName = customer ? customer.name : 'Walk-in Customer';
-            
             const heldOrders = JSON.parse(localStorage.getItem('heldOrders') || '[]');
+            const orderNumber = heldOrders.length + 1;
+            const orderLabel = `Order #${orderNumber}`;
+            
             const newOrder = {
                 id: `HOLD-${Date.now()}`,
                 date: new Date().toISOString(),
-                customer: customerName,
+                customer: orderLabel,
                 items: [...cart],
                 discount,
                 discountType
@@ -2138,18 +2974,185 @@
             showHeldOrders();
         }
 
+        function selectPaymentMethod(paymentMethod, buttonElement) {
+            const cart = store.getState().cart;
+            if (cart.length === 0) return;
+            
+            // Remove selected class from all payment buttons
+            document.querySelectorAll('.payment-option-btn').forEach(btn => {
+                btn.classList.remove('selected');
+                if (!btn.disabled && !btn.classList.contains('selected')) {
+                    btn.style.background = 'white';
+                    btn.style.borderColor = 'var(--gray-300)';
+                    btn.style.color = 'var(--gray-700)';
+                    const iconDiv = btn.querySelector('div');
+                    if (iconDiv) iconDiv.style.color = 'var(--gray-600)';
+                }
+            });
+            
+            // Add selected class to clicked button
+            if (!buttonElement.disabled) {
+                buttonElement.classList.add('selected');
+                buttonElement.style.background = '#10b981';
+                buttonElement.style.borderColor = '#10b981';
+                buttonElement.style.color = 'white';
+                const iconDiv = buttonElement.querySelector('div');
+                if (iconDiv) iconDiv.style.color = 'white';
+                
+                // Show customer information modal
+                showCustomerInfoModal(paymentMethod, buttonElement);
+            }
+        }
+
+        function showCustomerInfoModal(paymentMethod, buttonElement) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 modal-backdrop flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 animate-fade-in shadow-xl">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--gray-900);">Customer Information</h2>
+                        <button onclick="this.closest('.modal-backdrop').remove()" style="background: var(--gray-200); padding: 8px 12px; border-radius: 8px; border: none; cursor: pointer; color: var(--gray-700);" onmouseover="this.style.background='var(--gray-300)'" onmouseout="this.style.background='var(--gray-200)'">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form id="customerInfoForm" onsubmit="submitCustomerInfo(event, '${paymentMethod}', this.closest('.modal-backdrop'))">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Name <span class="text-muted" style="font-weight: 400;">(Optional)</span>
+                                </label>
+                                <input type="text" id="customerNameInput" name="name" 
+                                    class="input-field" 
+                                    placeholder="Enter customer name"
+                                    style="padding: 12px; font-size: 15px;"
+                                    autocomplete="off">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Mobile Number <span style="color: var(--danger);">*</span>
+                                </label>
+                                <input type="tel" id="customerMobileInput" name="mobile" required 
+                                    class="input-field" 
+                                    placeholder="Enter mobile number"
+                                    style="padding: 12px; font-size: 15px;"
+                                    pattern="[0-9]{10,15}"
+                                    autocomplete="off">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Email <span class="text-muted" style="font-weight: 400;">(Optional)</span>
+                                </label>
+                                <input type="email" id="customerEmailInput" name="email" 
+                                    class="input-field" 
+                                    placeholder="Enter email address"
+                                    style="padding: 12px; font-size: 15px;"
+                                    autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="flex gap-3 mt-6">
+                            <button type="button" onclick="this.closest('.modal-backdrop').remove()" 
+                                class="flex-1" 
+                                style="background: var(--gray-200); color: var(--gray-700); padding: 12px; border-radius: 10px; font-weight: 600; border: none; cursor: pointer; transition: all 0.3s ease;"
+                                onmouseover="this.style.background='var(--gray-300)'" 
+                                onmouseout="this.style.background='var(--gray-200)'">
+                                Cancel
+                            </button>
+                            <button type="submit" 
+                                class="flex-1 btn-primary" 
+                                style="padding: 12px; border-radius: 10px; font-weight: 600;">
+                                <i class="fas fa-check mr-2"></i>Proceed to Payment
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Focus on name input
+            setTimeout(() => {
+                document.getElementById('customerNameInput')?.focus();
+            }, 100);
+        }
+
+        function submitCustomerInfo(event, paymentMethod, modalElement) {
+            event.preventDefault();
+            
+            const form = event.target;
+            const name = form.querySelector('#customerNameInput').value.trim();
+            const mobile = form.querySelector('#customerMobileInput').value.trim();
+            const email = form.querySelector('#customerEmailInput').value.trim();
+            
+            // Only mobile is required
+            if (!mobile) {
+                alert('Please enter mobile number');
+                return;
+            }
+            
+            // Validate mobile number
+            if (mobile.length < 10 || !/^[0-9]+$/.test(mobile)) {
+                alert('Please enter a valid mobile number (10-15 digits)');
+                return;
+            }
+            
+            // Store customer info in state (name can be empty)
+            store.setState({ 
+                customerInfo: { name: name || 'Walk-in Customer', mobile, email }
+            });
+            
+            // Remove modal
+            modalElement.remove();
+            
+            // Proceed with checkout
+            checkout(paymentMethod);
+        }
+
         function checkout(paymentMethod) {
             const cart = store.getState().cart;
             const settings = store.getState().settings;
-            const selectedCustomer = store.getState().selectedCustomer;
             const discount = store.getState().discount || 0;
             const discountType = store.getState().discountType || 'percentage';
+            const customerInfo = store.getState().customerInfo || {};
             
             if (cart.length === 0) return;
             
             const customers = JSON.parse(localStorage.getItem('customers') || '[]');
-            const customer = selectedCustomer ? customers.find(c => c.id === selectedCustomer) : null;
-            const customerName = customer ? customer.name : 'Walk-in Customer';
+            let customer = null;
+            let customerName = 'Walk-in Customer';
+            let customerEmail = '';
+            let customerPhone = '';
+            
+            // Use customer info from modal (mobile is required, name is optional)
+            if (customerInfo.mobile) {
+                customerName = customerInfo.name || 'Walk-in Customer';
+                customerEmail = customerInfo.email || '';
+                customerPhone = customerInfo.mobile;
+                
+                // Check if customer already exists by phone
+                const existingCustomer = customers.find(c => c.phone === customerPhone);
+                if (existingCustomer) {
+                    customer = existingCustomer;
+                    // Update name if provided and different
+                    if (customerInfo.name && customerInfo.name !== 'Walk-in Customer' && customerInfo.name !== existingCustomer.name) {
+                        existingCustomer.name = customerInfo.name;
+                    }
+                    // Update email if provided
+                    if (customerEmail && customerEmail !== existingCustomer.email) {
+                        existingCustomer.email = customerEmail;
+                    }
+                } else {
+                    // Create new customer
+                    const newCustomer = {
+                        id: Math.max(0, ...customers.map(c => c.id)) + 1,
+                        name: customerName,
+                        email: customerEmail || `${customerName.toLowerCase().replace(/\s+/g, '')}@email.com`,
+                        phone: customerPhone,
+                        totalPurchases: 0,
+                        lastPurchase: new Date().toISOString().split('T')[0]
+                    };
+                    customers.push(newCustomer);
+                    customer = newCustomer;
+                }
+            }
             
             const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
             let discountAmount = 0;
@@ -2167,6 +3170,8 @@
                 id: `INV-${String(invoices.length + 1).padStart(3, '0')}`,
                 date: new Date().toISOString().split('T')[0],
                 customer: customerName,
+                customerPhone: customerPhone || '',
+                customerEmail: customerEmail || '',
                 items: cart.map(item => ({ name: item.name, qty: item.qty, price: item.price })),
                 subtotal,
                 discount: discountAmount,
@@ -2182,13 +3187,22 @@
             if (customer) {
                 customer.totalPurchases += total;
                 customer.lastPurchase = newInvoice.date;
+                // Update email if provided in form
+                if (customerInfo.email && customerInfo.email !== customer.email) {
+                    customer.email = customerInfo.email;
+                }
                 const allCustomers = JSON.parse(localStorage.getItem('customers') || '[]');
                 const customerIndex = allCustomers.findIndex(c => c.id === customer.id);
                 if (customerIndex !== -1) {
                     allCustomers[customerIndex] = customer;
-                    localStorage.setItem('customers', JSON.stringify(allCustomers));
+                } else {
+                    allCustomers.push(customer);
                 }
+                localStorage.setItem('customers', JSON.stringify(allCustomers));
             }
+            
+            // Clear customer info from state
+            store.setState({ customerInfo: null });
             
             const products = JSON.parse(localStorage.getItem('products') || '[]');
             cart.forEach(cartItem => {
@@ -2198,6 +3212,18 @@
                 }
             });
             localStorage.setItem('products', JSON.stringify(products));
+            
+            // Clear payment selection
+            document.querySelectorAll('.payment-option-btn').forEach(btn => {
+                btn.classList.remove('selected');
+                if (!btn.disabled) {
+                    btn.style.background = 'white';
+                    btn.style.borderColor = 'var(--gray-300)';
+                    btn.style.color = 'var(--gray-700)';
+                    const iconDiv = btn.querySelector('div');
+                    if (iconDiv) iconDiv.style.color = 'var(--gray-600)';
+                }
+            });
             
             alert(`Payment successful! Invoice ${newInvoice.id} created.`);
             printInvoice(newInvoice.id);
@@ -2246,6 +3272,8 @@
                         <div><strong>Invoice ID:</strong> ${invoice.id}</div>
                         <div><strong>Date:</strong> ${invoice.date}</div>
                         <div><strong>Customer:</strong> ${invoice.customer}</div>
+                        ${invoice.customerPhone ? `<div><strong>Phone:</strong> ${invoice.customerPhone}</div>` : ''}
+                        ${invoice.customerEmail ? `<div><strong>Email:</strong> ${invoice.customerEmail}</div>` : ''}
                         <div><strong>Payment Method:</strong> ${invoice.payment}</div>
                     </div>
                     <table>
@@ -2284,6 +3312,86 @@
             printWindow.print();
         }
 
+        function scanBarcode() {
+            // Focus on the search input to allow barcode scanner input
+            const searchInput = document.getElementById('productSearch');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+                
+                // Show a message to guide user
+                const originalPlaceholder = searchInput.placeholder;
+                searchInput.placeholder = 'Scan barcode now...';
+                
+                // Listen for Enter key (barcode scanners typically send Enter after scanning)
+                const handleKeyPress = (e) => {
+                    if (e.key === 'Enter' && searchInput.value.trim()) {
+                        // Search for product by barcode
+                        const barcode = searchInput.value.trim();
+                        const products = JSON.parse(localStorage.getItem('products') || '[]');
+                        const product = products.find(p => p.barcode === barcode || p.sku === barcode);
+                        
+                        if (product) {
+                            // Add product to cart
+                            addToCart(product.id);
+                            searchInput.value = '';
+                            searchInput.placeholder = originalPlaceholder;
+                            searchInput.removeEventListener('keypress', handleKeyPress);
+                        } else {
+                            alert('Product not found with this barcode/SKU');
+                            searchInput.value = '';
+                            searchInput.placeholder = originalPlaceholder;
+                            searchInput.removeEventListener('keypress', handleKeyPress);
+                        }
+                    }
+                };
+                
+                searchInput.addEventListener('keypress', handleKeyPress);
+                
+                // Also handle blur to reset placeholder
+                const handleBlur = () => {
+                    searchInput.placeholder = originalPlaceholder;
+                    searchInput.removeEventListener('keypress', handleKeyPress);
+                    searchInput.removeEventListener('blur', handleBlur);
+                };
+                searchInput.addEventListener('blur', handleBlur);
+            }
+        }
+
+        function scanBarcodeForProducts() {
+            // Focus on the search input to allow barcode scanner input
+            const searchInput = document.getElementById('searchProducts');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+                
+                // Show a message to guide user
+                const originalPlaceholder = searchInput.placeholder;
+                searchInput.placeholder = 'Scan barcode now...';
+                
+                // Listen for Enter key (barcode scanners typically send Enter after scanning)
+                const handleKeyPress = (e) => {
+                    if (e.key === 'Enter' && searchInput.value.trim()) {
+                        // Filter products by barcode
+                        const barcode = searchInput.value.trim();
+                        filterProductsList(barcode);
+                        searchInput.placeholder = originalPlaceholder;
+                        searchInput.removeEventListener('keypress', handleKeyPress);
+                    }
+                };
+                
+                searchInput.addEventListener('keypress', handleKeyPress);
+                
+                // Also handle blur to reset placeholder
+                const handleBlur = () => {
+                    searchInput.placeholder = originalPlaceholder;
+                    searchInput.removeEventListener('keypress', handleKeyPress);
+                    searchInput.removeEventListener('blur', handleBlur);
+                };
+                searchInput.addEventListener('blur', handleBlur);
+            }
+        }
+
         function filterProducts(searchTerm) {
             const products = JSON.parse(localStorage.getItem('products') || '[]');
             const grid = document.getElementById('productsGrid');
@@ -2301,6 +3409,410 @@
                     <div class="text-xs text-gray-600 mt-1">Stock: ${p.stock}</div>
                 </div>
             `).join('');
+        }
+
+        function filterProductsList(searchTerm) {
+            const products = JSON.parse(localStorage.getItem('products') || '[]');
+            const table = document.getElementById('productsTable');
+            if (!table) return;
+            
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            
+            const searchLower = searchTerm.toLowerCase().trim();
+            const filtered = products.filter(p =>
+                p.name.toLowerCase().includes(searchLower) ||
+                p.sku.toLowerCase().includes(searchLower) ||
+                p.category.toLowerCase().includes(searchLower) ||
+                p.barcode.includes(searchTerm)
+            );
+            
+            tbody.innerHTML = filtered.map(p => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-2xl">${p.image}</span>
+                            <span class="font-semibold text-gray-800">${p.name}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 text-gray-600">${p.sku}</td>
+                    <td class="px-4 py-3"><span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">${p.category}</span></td>
+                    <td class="px-4 py-3 font-semibold text-gray-800">${formatCurrency(p.price)}</td>
+                    <td class="px-4 py-3">
+                        <span class="${p.stock < 10 ? 'text-red-600 font-bold' : 'text-gray-800'}">${p.stock}</span>
+                        ${p.stock < 10 ? '<i class="fas fa-exclamation-triangle text-red-500 ml-2"></i>' : ''}
+                    </td>
+                    <td class="px-4 py-3 text-gray-600 text-sm">${p.barcode}</td>
+                </tr>
+            `).join('');
+        }
+
+        function filterStockData(searchTerm) {
+            const products = JSON.parse(localStorage.getItem('products') || '[]');
+            const table = document.getElementById('stockDataTable');
+            if (!table) return;
+            
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            
+            const searchLower = searchTerm.toLowerCase().trim();
+            const filtered = products.filter(p =>
+                p.name.toLowerCase().includes(searchLower) ||
+                p.sku.toLowerCase().includes(searchLower) ||
+                p.category.toLowerCase().includes(searchLower) ||
+                p.barcode.includes(searchTerm)
+            );
+            
+            tbody.innerHTML = filtered.map(product => {
+                const stockValue = product.stock * product.price;
+                const stockStatus = product.stock === 0 ? 'out' : product.stock < 10 ? 'low' : 'good';
+                return `
+                <tr class="hover:bg-gray-50">
+                    <td class="table-cell">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-2xl">${product.image}</span>
+                            <span class="font-semibold text-gray-800">${product.name}</span>
+                        </div>
+                    </td>
+                    <td class="table-cell text-gray-600">${product.sku}</td>
+                    <td class="table-cell">
+                        <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">${product.category}</span>
+                    </td>
+                    <td class="table-cell">
+                        <span class="font-bold ${stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-orange-600' : 'text-green-600'}">${product.stock}</span>
+                    </td>
+                    <td class="table-cell font-semibold text-gray-800">${formatCurrency(product.price)}</td>
+                    <td class="table-cell font-bold text-gray-800">${formatCurrency(stockValue)}</td>
+                    <td class="table-cell text-gray-600 text-sm">${product.barcode}</td>
+                    <td class="table-cell">
+                        ${stockStatus === 'out' ? '<span class="badge badge-danger">Out of Stock</span>' : 
+                          stockStatus === 'low' ? '<span class="badge badge-warning">Low Stock</span>' : 
+                          '<span class="badge badge-success">In Stock</span>'}
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        function scanBarcodeForStock() {
+            const searchInput = document.getElementById('stockSearch');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+                
+                const originalPlaceholder = searchInput.placeholder;
+                searchInput.placeholder = 'Scan barcode now...';
+                
+                const handleKeyPress = (e) => {
+                    if (e.key === 'Enter' && searchInput.value.trim()) {
+                        const barcode = searchInput.value.trim();
+                        filterStockData(barcode);
+                        searchInput.placeholder = originalPlaceholder;
+                        searchInput.removeEventListener('keypress', handleKeyPress);
+                    }
+                };
+                
+                searchInput.addEventListener('keypress', handleKeyPress);
+                
+                const handleBlur = () => {
+                    searchInput.placeholder = originalPlaceholder;
+                    searchInput.removeEventListener('keypress', handleKeyPress);
+                    searchInput.removeEventListener('blur', handleBlur);
+                };
+                searchInput.addEventListener('blur', handleBlur);
+            }
+        }
+
+        function filterCustomersList(searchTerm) {
+            const customers = JSON.parse(localStorage.getItem('customers') || '[]');
+            const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            const container = document.getElementById('customersList');
+            if (!container) return;
+            
+            const selectedCustomerId = store.getState().selectedCustomerForView || null;
+            const filters = store.getState().customerFilters || {
+                status: '',
+                dateFrom: '',
+                dateTo: '',
+                purchaseAmountMin: '',
+                purchaseAmountMax: ''
+            };
+            const sort = store.getState().customerSort || {
+                field: 'totalSpent',
+                order: 'desc'
+            };
+            
+            const searchLower = searchTerm.toLowerCase().trim();
+            let filtered = customers.filter(c =>
+                c.name.toLowerCase().includes(searchLower) ||
+                c.email.toLowerCase().includes(searchLower) ||
+                c.phone.includes(searchTerm)
+            );
+            
+            // Calculate orders, avg order value, last purchase date for filtered customers
+            let customersWithStats = filtered.map(c => {
+                const customerInvs = invoices.filter(inv => 
+                    inv.customer === c.name || inv.customerPhone === c.phone
+                );
+                const ordersCount = customerInvs.length;
+                const avgOrderValue = ordersCount > 0 ? c.totalPurchases / ordersCount : 0;
+                const sortedInvs = [...customerInvs].sort((a, b) => new Date(b.date) - new Date(a.date));
+                const lastPurchaseDate = sortedInvs.length > 0 ? sortedInvs[0].date : c.lastPurchase;
+                const status = getCustomerStatus(c.totalPurchases);
+                return { 
+                    ...c, 
+                    ordersCount, 
+                    avgOrderValue, 
+                    lastPurchaseDate,
+                    statusLabel: status.label,
+                    tags: c.tags || []
+                };
+            });
+            
+            // Apply filters
+            if (filters.status) {
+                customersWithStats = customersWithStats.filter(c => c.statusLabel === filters.status);
+            }
+            if (filters.dateFrom || filters.dateTo) {
+                customersWithStats = customersWithStats.filter(c => {
+                    if (!c.lastPurchaseDate) return false;
+                    const purchaseDate = new Date(c.lastPurchaseDate);
+                    if (filters.dateFrom && purchaseDate < new Date(filters.dateFrom)) return false;
+                    if (filters.dateTo && purchaseDate > new Date(filters.dateTo)) return false;
+                    return true;
+                });
+            }
+            if (filters.purchaseAmountMin || filters.purchaseAmountMax) {
+                customersWithStats = customersWithStats.filter(c => {
+                    if (filters.purchaseAmountMin && c.totalPurchases < parseFloat(filters.purchaseAmountMin)) return false;
+                    if (filters.purchaseAmountMax && c.totalPurchases > parseFloat(filters.purchaseAmountMax)) return false;
+                    return true;
+                });
+            }
+            // Apply sorting
+            customersWithStats.sort((a, b) => {
+                let aVal, bVal;
+                switch(sort.field) {
+                    case 'totalSpent':
+                        aVal = a.totalPurchases;
+                        bVal = b.totalPurchases;
+                        break;
+                    case 'lastPurchase':
+                        aVal = a.lastPurchaseDate ? new Date(a.lastPurchaseDate).getTime() : 0;
+                        bVal = b.lastPurchaseDate ? new Date(b.lastPurchaseDate).getTime() : 0;
+                        break;
+                    case 'invoiceCount':
+                        aVal = a.ordersCount;
+                        bVal = b.ordersCount;
+                        break;
+                    case 'ltv':
+                        aVal = a.totalPurchases;
+                        bVal = b.totalPurchases;
+                        break;
+                    default:
+                        aVal = a.totalPurchases;
+                        bVal = b.totalPurchases;
+                }
+                return sort.order === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+            
+            container.innerHTML = customersWithStats.map(c => {
+                const status = getCustomerStatus(c.totalPurchases);
+                const initials = c.name.split(' ').map(n => n[0]).join('').toUpperCase();
+                return `
+                <tr class="hover:bg-gray-50 transition cursor-pointer ${selectedCustomerId === c.id ? 'bg-indigo-50' : ''}" onclick="selectCustomerForView(${c.id})">
+                    <td class="px-4 py-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-bold text-sm">
+                                ${initials}
+                            </div>
+                            <div>
+                                <div class="font-semibold text-gray-800">${c.name}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4">
+                        <div class="text-sm text-gray-600">${c.email}</div>
+                        <div class="text-sm text-gray-600">${c.phone}</div>
+                    </td>
+                    <td class="px-4 py-4">
+                        <div class="text-sm font-semibold text-gray-800">${c.ordersCount}</div>
+                    </td>
+                    <td class="px-4 py-4">
+                        <div class="text-sm font-semibold text-gray-800">${formatCurrency(c.totalPurchases)}</div>
+                    </td>
+                    <td class="px-4 py-4">
+                        <div class="text-sm font-semibold text-gray-800">${formatCurrency(c.avgOrderValue)}</div>
+                    </td>
+                    <td class="px-4 py-4">
+                        <span class="px-3 py-1 ${status.color} rounded-full text-xs font-semibold">
+                            ${status.label}
+                        </span>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        function selectCustomerForView(customerId) {
+            store.setState({ selectedCustomerForView: customerId });
+            render();
+        }
+
+        function clearCustomerSelection() {
+            store.setState({ selectedCustomerForView: null });
+            render();
+        }
+
+        function setCustomerFilter(filterName, value) {
+            const currentFilters = store.getState().customerFilters || {
+                status: '',
+                dateFrom: '',
+                dateTo: '',
+                purchaseAmountMin: '',
+                purchaseAmountMax: ''
+            };
+            currentFilters[filterName] = value;
+            store.setState({ customerFilters: currentFilters });
+            localStorage.setItem('customerFilters', JSON.stringify(currentFilters));
+            render();
+        }
+
+        function clearCustomerFilters() {
+            const defaultFilters = {
+                status: '',
+                dateFrom: '',
+                dateTo: '',
+                purchaseAmountMin: '',
+                purchaseAmountMax: ''
+            };
+            store.setState({ customerFilters: defaultFilters });
+            localStorage.setItem('customerFilters', JSON.stringify(defaultFilters));
+            render();
+        }
+
+        function setCustomerSort(field, value) {
+            const currentSort = store.getState().customerSort || {
+                field: 'totalSpent',
+                order: 'desc'
+            };
+            currentSort[field] = value;
+            store.setState({ customerSort: currentSort });
+            localStorage.setItem('customerSort', JSON.stringify(currentSort));
+            render();
+        }
+
+        function applyCustomerFilters() {
+            // Trigger re-render to apply filters
+            render();
+        }
+
+        function exportCustomersToCSV() {
+            const customers = JSON.parse(localStorage.getItem('customers') || '[]');
+            const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            const filters = store.getState().customerFilters || {
+                status: '',
+                dateFrom: '',
+                dateTo: '',
+                purchaseAmountMin: '',
+                purchaseAmountMax: ''
+            };
+            const sort = store.getState().customerSort || {
+                field: 'totalSpent',
+                order: 'desc'
+            };
+            
+            // Calculate stats and apply filters (same logic as CustomersPage)
+            let customersWithStats = customers.map(c => {
+                const customerInvs = invoices.filter(inv => 
+                    inv.customer === c.name || inv.customerPhone === c.phone
+                );
+                const ordersCount = customerInvs.length;
+                const avgOrderValue = ordersCount > 0 ? c.totalPurchases / ordersCount : 0;
+                const sortedInvs = [...customerInvs].sort((a, b) => new Date(b.date) - new Date(a.date));
+                const lastPurchaseDate = sortedInvs.length > 0 ? sortedInvs[0].date : c.lastPurchase;
+                const status = getCustomerStatus(c.totalPurchases);
+                return { 
+                    ...c, 
+                    ordersCount, 
+                    avgOrderValue, 
+                    lastPurchaseDate,
+                    statusLabel: status.label,
+                    tags: c.tags || []
+                };
+            });
+            
+            // Apply filters
+            if (filters.status) {
+                customersWithStats = customersWithStats.filter(c => c.statusLabel === filters.status);
+            }
+            if (filters.dateFrom || filters.dateTo) {
+                customersWithStats = customersWithStats.filter(c => {
+                    if (!c.lastPurchaseDate) return false;
+                    const purchaseDate = new Date(c.lastPurchaseDate);
+                    if (filters.dateFrom && purchaseDate < new Date(filters.dateFrom)) return false;
+                    if (filters.dateTo && purchaseDate > new Date(filters.dateTo)) return false;
+                    return true;
+                });
+            }
+            if (filters.purchaseAmountMin || filters.purchaseAmountMax) {
+                customersWithStats = customersWithStats.filter(c => {
+                    if (filters.purchaseAmountMin && c.totalPurchases < parseFloat(filters.purchaseAmountMin)) return false;
+                    if (filters.purchaseAmountMax && c.totalPurchases > parseFloat(filters.purchaseAmountMax)) return false;
+                    return true;
+                });
+            }
+            // Apply sorting
+            customersWithStats.sort((a, b) => {
+                let aVal, bVal;
+                switch(sort.field) {
+                    case 'totalSpent':
+                        aVal = a.totalPurchases;
+                        bVal = b.totalPurchases;
+                        break;
+                    case 'lastPurchase':
+                        aVal = a.lastPurchaseDate ? new Date(a.lastPurchaseDate).getTime() : 0;
+                        bVal = b.lastPurchaseDate ? new Date(b.lastPurchaseDate).getTime() : 0;
+                        break;
+                    case 'invoiceCount':
+                        aVal = a.ordersCount;
+                        bVal = b.ordersCount;
+                        break;
+                    case 'ltv':
+                        aVal = a.totalPurchases;
+                        bVal = b.totalPurchases;
+                        break;
+                    default:
+                        aVal = a.totalPurchases;
+                        bVal = b.totalPurchases;
+                }
+                return sort.order === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+            
+            // Create CSV content
+            let csv = 'Customer Name,Email,Phone,Invoices,Total Spent,Avg Order Value,Last Purchase,Status,Tags\n';
+            customersWithStats.forEach(c => {
+                const tags = (c.tags || []).join('; ');
+                csv += `"${c.name}","${c.email}","${c.phone}",${c.ordersCount},${c.totalPurchases.toFixed(2)},${c.avgOrderValue.toFixed(2)},${c.lastPurchaseDate || 'N/A'},"${c.statusLabel}","${tags}"\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `customers-export-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            alert(`Exported ${customersWithStats.length} customers to CSV!`);
+        }
+
+        function getCustomerStatus(totalPurchases) {
+            if (totalPurchases >= 5000) {
+                return { label: 'VIP Customer', color: 'bg-green-100 text-green-800', icon: 'fa-crown' };
+            } else if (totalPurchases >= 1000) {
+                return { label: 'Regular Customer', color: 'bg-blue-100 text-blue-800', icon: 'fa-user' };
+            } else {
+                return { label: 'New Customer', color: 'bg-yellow-100 text-yellow-800', icon: 'fa-user-plus' };
+            }
         }
 
         function showProductModal() {
@@ -2416,7 +3928,6 @@
                 businessName: document.getElementById('businessName').value,
                 taxRate: parseFloat(document.getElementById('taxRate').value),
                 currency: document.getElementById('currency').value,
-                theme: store.getState().theme
             };
             localStorage.setItem('settings', JSON.stringify(settings));
             store.setState({ settings });
@@ -2491,6 +4002,16 @@
                                     <i class="fas fa-plus mr-2"></i>Add Item
                                 </button>
                             </div>
+                            <div>
+                                <label class="block text-gray-700 mb-2 font-semibold">Upload Document</label>
+                                <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-indigo-500 transition cursor-pointer" onclick="document.getElementById('poFileUpload').click()">
+                                    <input type="file" id="poFileUpload" name="file" class="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                    <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
+                                    <p class="text-gray-600 text-sm mb-1">Click to upload or drag and drop</p>
+                                    <p class="text-gray-400 text-xs">PDF, JPG, PNG, DOC, DOCX (Max 10MB)</p>
+                                    <div id="poFileName" class="mt-2 text-sm text-indigo-600 font-semibold hidden"></div>
+                                </div>
+                            </div>
                         </div>
                         <div class="flex gap-4 mt-6">
                             <button type="submit" class="btn btn-primary flex-1">
@@ -2504,6 +4025,21 @@
                 </div>
             `;
             document.body.appendChild(modal);
+            
+            // Handle file upload display
+            const fileInput = document.getElementById('poFileUpload');
+            const fileNameDisplay = document.getElementById('poFileName');
+            if (fileInput && fileNameDisplay) {
+                fileInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        fileNameDisplay.textContent = file.name;
+                        fileNameDisplay.classList.remove('hidden');
+                    } else {
+                        fileNameDisplay.classList.add('hidden');
+                    }
+                });
+            }
         }
 
         function addPOItem() {
@@ -2779,6 +4315,7 @@
                 dateTo: '',
                 paymentMethod: '',
                 customer: '',
+                orderType: 'all',
                 quickFilter: 'all'
             };
             
@@ -2808,6 +4345,7 @@
                 dateTo: '',
                 paymentMethod: '',
                 customer: '',
+                orderType: 'all',
                 quickFilter: 'all'
             };
             store.setState({ reportFilters: defaultFilters });
@@ -2815,67 +4353,342 @@
             store.navigate('reports');
         }
 
+        function setInventoryFilter(filterName, value) {
+            const currentFilters = store.getState().inventoryFilters || {
+                poStatus: '',
+                poDateFrom: '',
+                poDateTo: '',
+                poSupplier: '',
+                poAmountMin: '',
+                poAmountMax: '',
+                returnStatus: '',
+                returnType: '',
+                returnDateFrom: '',
+                returnDateTo: '',
+                returnCustomer: '',
+                returnAmountMin: '',
+                returnAmountMax: ''
+            };
+            currentFilters[filterName] = value;
+            store.setState({ inventoryFilters: currentFilters });
+            localStorage.setItem('inventoryFilters', JSON.stringify(currentFilters));
+            render();
+        }
+
+        function clearPOFilters() {
+            const currentFilters = store.getState().inventoryFilters || {
+                poStatus: '',
+                poDateFrom: '',
+                poDateTo: '',
+                poSupplier: '',
+                poAmountMin: '',
+                poAmountMax: '',
+                poSearch: '',
+                returnStatus: '',
+                returnType: '',
+                returnDateFrom: '',
+                returnDateTo: '',
+                returnCustomer: '',
+                returnAmountMin: '',
+                returnAmountMax: '',
+                returnSearch: ''
+            };
+            currentFilters.poStatus = '';
+            currentFilters.poDateFrom = '';
+            currentFilters.poDateTo = '';
+            currentFilters.poSupplier = '';
+            currentFilters.poSearch = '';
+            // Clear search input
+            const searchInput = document.getElementById('poSearch');
+            if (searchInput) searchInput.value = '';
+            store.setState({ inventoryFilters: currentFilters });
+            localStorage.setItem('inventoryFilters', JSON.stringify(currentFilters));
+            render();
+        }
+
+        function clearReturnFilters() {
+            const currentFilters = store.getState().inventoryFilters || {
+                poStatus: '',
+                poDateFrom: '',
+                poDateTo: '',
+                poSupplier: '',
+                poAmountMin: '',
+                poAmountMax: '',
+                poSearch: '',
+                returnStatus: '',
+                returnType: '',
+                returnDateFrom: '',
+                returnDateTo: '',
+                returnCustomer: '',
+                returnAmountMin: '',
+                returnAmountMax: '',
+                returnSearch: ''
+            };
+            currentFilters.returnStatus = '';
+            currentFilters.returnType = '';
+            currentFilters.returnDateFrom = '';
+            currentFilters.returnDateTo = '';
+            currentFilters.returnSearch = '';
+            // Clear search input
+            const searchInput = document.getElementById('returnSearch');
+            if (searchInput) searchInput.value = '';
+            store.setState({ inventoryFilters: currentFilters });
+            localStorage.setItem('inventoryFilters', JSON.stringify(currentFilters));
+            render();
+        }
+
+        function filterPurchaseOrders(searchTerm) {
+            const currentFilters = store.getState().inventoryFilters || {
+                poStatus: '',
+                poDateFrom: '',
+                poDateTo: '',
+                poSupplier: '',
+                poAmountMin: '',
+                poAmountMax: '',
+                poSearch: '',
+                returnStatus: '',
+                returnType: '',
+                returnDateFrom: '',
+                returnDateTo: '',
+                returnCustomer: '',
+                returnAmountMin: '',
+                returnAmountMax: '',
+                returnSearch: ''
+            };
+            currentFilters.poSearch = searchTerm;
+            store.setState({ inventoryFilters: currentFilters });
+            localStorage.setItem('inventoryFilters', JSON.stringify(currentFilters));
+            render();
+        }
+
+        function filterReturnsExchanges(searchTerm) {
+            const currentFilters = store.getState().inventoryFilters || {
+                poStatus: '',
+                poDateFrom: '',
+                poDateTo: '',
+                poSupplier: '',
+                poAmountMin: '',
+                poAmountMax: '',
+                poSearch: '',
+                returnStatus: '',
+                returnType: '',
+                returnDateFrom: '',
+                returnDateTo: '',
+                returnCustomer: '',
+                returnAmountMin: '',
+                returnAmountMax: '',
+                returnSearch: ''
+            };
+            currentFilters.returnSearch = searchTerm;
+            store.setState({ inventoryFilters: currentFilters });
+            localStorage.setItem('inventoryFilters', JSON.stringify(currentFilters));
+            render();
+        }
+
+        function exportSlowMovingStock() {
+            const products = JSON.parse(localStorage.getItem('products') || '[]');
+            const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            
+            // Calculate slow-moving products (same logic as InventoryPage)
+            const today = new Date();
+            const ninetyDaysAgo = new Date(today);
+            ninetyDaysAgo.setDate(today.getDate() - 90);
+            
+            const recentSales = {};
+            invoices.forEach(inv => {
+                const invDate = new Date(inv.date);
+                if (invDate >= ninetyDaysAgo) {
+                    inv.items.forEach(item => {
+                        if (!recentSales[item.name]) {
+                            recentSales[item.name] = 0;
+                        }
+                        recentSales[item.name] += item.qty;
+                    });
+                }
+            });
+            
+            const slowMovingProducts = products.filter(product => {
+                const hasRecentSales = recentSales[product.name] > 0;
+                return !hasRecentSales && product.stock > 0;
+            }).map(product => ({
+                ...product,
+                stockValue: product.stock * product.price
+            }));
+            
+            // Create CSV content
+            let csv = 'Product Name,SKU,Category,Current Stock,Unit Price,Stock Value,Status\n';
+            slowMovingProducts.forEach(product => {
+                csv += `"${product.name}","${product.sku}","${product.category}",${product.stock},${product.price.toFixed(2)},${product.stockValue.toFixed(2)},"Not Moving"\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `slow-moving-stock-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            alert(`Exported ${slowMovingProducts.length} slow-moving products to CSV!`);
+        }
+
+        function exportAllStockData() {
+            const products = JSON.parse(localStorage.getItem('products') || '[]');
+            const searchInput = document.getElementById('stockSearch');
+            const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+            
+            // Filter products if search term exists
+            let filteredProducts = products;
+            if (searchTerm) {
+                filteredProducts = products.filter(p =>
+                    p.name.toLowerCase().includes(searchTerm) ||
+                    p.sku.toLowerCase().includes(searchTerm) ||
+                    p.category.toLowerCase().includes(searchTerm) ||
+                    p.barcode.includes(searchTerm)
+                );
+            }
+            
+            // Create CSV content
+            let csv = 'Product Name,SKU,Category,Current Stock,Unit Price,Stock Value,Barcode,Status\n';
+            filteredProducts.forEach(product => {
+                const stockValue = product.stock * product.price;
+                const stockStatus = product.stock === 0 ? 'Out of Stock' : product.stock < 10 ? 'Low Stock' : 'In Stock';
+                csv += `"${product.name}","${product.sku}","${product.category}",${product.stock},${product.price.toFixed(2)},${stockValue.toFixed(2)},"${product.barcode}","${stockStatus}"\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const fileName = searchTerm ? `all-stock-data-filtered-${new Date().toISOString().split('T')[0]}.csv` : `all-stock-data-${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = fileName;
+            a.click();
+            alert(`Exported ${filteredProducts.length} products to CSV!`);
+        }
+
         function exportReport() {
             const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            const purchaseOrders = JSON.parse(localStorage.getItem('purchaseOrders') || '[]');
+            const returns = JSON.parse(localStorage.getItem('returns') || '[]');
             const filters = store.getState().reportFilters || {
                 dateFrom: '',
                 dateTo: '',
                 paymentMethod: '',
                 customer: '',
+                orderType: 'all',
                 quickFilter: 'all'
             };
             
+            // Combine all transactions with type labels (same as ReportsPage)
+            let allTransactions = [
+                ...invoices.map(inv => ({ ...inv, transactionType: 'sale', typeLabel: 'Sale' })),
+                ...purchaseOrders.map(po => ({ ...po, transactionType: 'purchase', typeLabel: 'Purchase', customer: po.supplier || 'N/A', payment: 'N/A', discount: 0, tax: 0 })),
+                ...returns.map(ret => ({ ...ret, transactionType: 'return', typeLabel: ret.type === 'return' ? 'Return' : 'Exchange', payment: 'N/A', discount: 0, tax: 0 }))
+            ];
+            
             // Apply same filters as in ReportsPage
-            let filteredInvoices = [...invoices];
+            let filteredTransactions = [...allTransactions];
+            
+            // Order type filter
+            if (filters.orderType !== 'all') {
+                filteredTransactions = filteredTransactions.filter(t => t.transactionType === filters.orderType);
+            }
             
             if (filters.quickFilter !== 'all') {
                 const today = new Date();
                 if (filters.quickFilter === 'today') {
                     const todayStr = today.toISOString().split('T')[0];
-                    filteredInvoices = filteredInvoices.filter(inv => inv.date === todayStr);
+                    filteredTransactions = filteredTransactions.filter(t => t.date === todayStr);
                 } else if (filters.quickFilter === 'week') {
                     const weekAgo = new Date(today);
                     weekAgo.setDate(today.getDate() - 7);
-                    filteredInvoices = filteredInvoices.filter(inv => {
-                        const invDate = new Date(inv.date);
-                        return invDate >= weekAgo && invDate <= today;
+                    filteredTransactions = filteredTransactions.filter(t => {
+                        const tDate = new Date(t.date);
+                        return tDate >= weekAgo && tDate <= today;
                     });
                 } else if (filters.quickFilter === 'month') {
                     const monthAgo = new Date(today);
                     monthAgo.setMonth(today.getMonth() - 1);
-                    filteredInvoices = filteredInvoices.filter(inv => {
-                        const invDate = new Date(inv.date);
-                        return invDate >= monthAgo && invDate <= today;
+                    filteredTransactions = filteredTransactions.filter(t => {
+                        const tDate = new Date(t.date);
+                        return tDate >= monthAgo && tDate <= today;
                     });
                 } else if (filters.quickFilter === 'year') {
                     const yearAgo = new Date(today);
                     yearAgo.setFullYear(today.getFullYear() - 1);
-                    filteredInvoices = filteredInvoices.filter(inv => {
-                        const invDate = new Date(inv.date);
-                        return invDate >= yearAgo && invDate <= today;
+                    filteredTransactions = filteredTransactions.filter(t => {
+                        const tDate = new Date(t.date);
+                        return tDate >= yearAgo && tDate <= today;
                     });
                 }
             }
             
-            if (filters.dateFrom) filteredInvoices = filteredInvoices.filter(inv => inv.date >= filters.dateFrom);
-            if (filters.dateTo) filteredInvoices = filteredInvoices.filter(inv => inv.date <= filters.dateTo);
-            if (filters.paymentMethod) filteredInvoices = filteredInvoices.filter(inv => inv.payment === filters.paymentMethod);
-            if (filters.customer) filteredInvoices = filteredInvoices.filter(inv => inv.customer === filters.customer);
+            if (filters.dateFrom) filteredTransactions = filteredTransactions.filter(t => t.date >= filters.dateFrom);
+            if (filters.dateTo) filteredTransactions = filteredTransactions.filter(t => t.date <= filters.dateTo);
+            if (filters.paymentMethod) filteredTransactions = filteredTransactions.filter(t => t.payment === filters.paymentMethod);
             
             // Create CSV content
-            let csv = 'Invoice ID,Customer,Date,Items,Subtotal,Discount,Tax,Total,Payment\n';
-            filteredInvoices.forEach(inv => {
-                const items = inv.items.map(item => `${item.name} (${item.qty}x)`).join('; ');
-                csv += `${inv.id},"${inv.customer}",${inv.date},"${items}",${inv.subtotal},${inv.discount || 0},${inv.tax},${inv.total},${inv.payment}\n`;
+            let csv = 'Type,ID,Customer/Supplier,Date,Items,Subtotal,Discount,Tax,Total,Payment\n';
+            filteredTransactions.forEach(t => {
+                const items = t.items.map(item => `${item.name} (${item.qty}x)`).join('; ');
+                const customerSupplier = t.customer || t.supplier || 'N/A';
+                const payment = t.payment && t.payment !== 'N/A' ? t.payment : '-';
+                csv += `${t.typeLabel},${t.id},"${customerSupplier}",${t.date},"${items}",${t.subtotal || t.total},${t.discount || 0},${t.tax || 0},${t.total},${payment}\n`;
             });
             
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `sales-report-${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `report-${new Date().toISOString().split('T')[0]}.csv`;
             a.click();
             alert('Report exported successfully!');
+        }
+
+        let dateTimeInterval = null;
+
+        function handleDashboardSearch(event) {
+            if (event.key === 'Enter') {
+                const searchInput = document.getElementById('dashboardProductSearch');
+                const searchTerm = searchInput.value.trim();
+                
+                if (searchTerm) {
+                    // Store search term to use in POS page
+                    sessionStorage.setItem('posSearchTerm', searchTerm);
+                    // Navigate to POS checkout page
+                    store.navigate('pos');
+                }
+            }
+        }
+
+        function handleDashboardSearchClick() {
+            const searchInput = document.getElementById('dashboardProductSearch');
+            const searchTerm = searchInput.value.trim();
+            
+            if (searchTerm) {
+                // Store search term to use in POS page
+                sessionStorage.setItem('posSearchTerm', searchTerm);
+                // Navigate to POS checkout page
+                store.navigate('pos');
+            } else {
+                // If empty, just navigate to POS page
+                store.navigate('pos');
+            }
+        }
+
+        function updateDashboardDateTime() {
+            const dateElement = document.getElementById('dashboardDate');
+            const timeElement = document.getElementById('dashboardTime');
+            
+            if (dateElement && timeElement) {
+                const now = new Date();
+                
+                // Format date: Monday, December 16, 2024
+                const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                dateElement.textContent = now.toLocaleDateString('en-US', dateOptions);
+                
+                // Format time: HH:MM:SS AM/PM
+                const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+                timeElement.textContent = now.toLocaleTimeString('en-US', timeOptions);
+            }
         }
 
         function render() {
@@ -2903,6 +4716,38 @@
                 }
             }
             document.getElementById('app').innerHTML = html;
+            
+            // Update date and time if on dashboard
+            if (state.isLoggedIn && state.currentPage === 'dashboard') {
+                // Clear existing interval if any
+                if (dateTimeInterval) {
+                    clearInterval(dateTimeInterval);
+                }
+                updateDashboardDateTime();
+                // Update time every second
+                dateTimeInterval = setInterval(updateDashboardDateTime, 1000);
+            } else {
+                // Clear interval when not on dashboard
+                if (dateTimeInterval) {
+                    clearInterval(dateTimeInterval);
+                    dateTimeInterval = null;
+                }
+            }
+            
+            // Handle search term from dashboard to POS
+            if (state.isLoggedIn && state.currentPage === 'pos') {
+                const searchTerm = sessionStorage.getItem('posSearchTerm');
+                if (searchTerm) {
+                    const posSearchInput = document.getElementById('productSearch');
+                    if (posSearchInput) {
+                        posSearchInput.value = searchTerm;
+                        // Trigger search filter
+                        filterProducts(searchTerm);
+                        // Clear the stored search term
+                        sessionStorage.removeItem('posSearchTerm');
+                    }
+                }
+            }
         }
 
         store.subscribe(render);
