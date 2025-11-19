@@ -1797,7 +1797,7 @@
                                                     <button onclick="printInvoice('${inv.id}')" class="btn" style="background: var(--gray-200); color: var(--gray-800); padding: 6px 12px; font-size: 14px;">
                                                         <i class="fas fa-print"></i>
                                                     </button>
-                                                </div>
+                                        </div>
                                     </div>
                                 `).join('')}
                             </div>
@@ -1932,7 +1932,7 @@
                                 <div class="relative">
                                     <input type="text" id="invoiceSearch" placeholder="Search by invoice ID, customer, date, or items..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" value="${filters.search || ''}" oninput="setInvoiceFilter('search', this.value)" style="padding-right: 40px;">
                                     <i class="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                                </div>
+                            </div>
                             </div>
                             
                             <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -2978,6 +2978,28 @@
                 return;
             }
             
+            // Validate name - must be only alphabets and spaces
+            if (!/^[A-Za-z\s]+$/.test(name) || name.length < 2) {
+                alert('Name must contain only letters and be at least 2 characters long');
+                const nameInput = document.getElementById('customerName');
+                if (nameInput) {
+                    nameInput.focus();
+                    nameInput.style.borderColor = 'var(--danger)';
+                }
+                return;
+            }
+            
+            // Validate mobile number - must be exactly 10 digits
+            if (mobile.length !== 10 || !/^[0-9]{10}$/.test(mobile)) {
+                alert('Please enter a valid 10-digit mobile number');
+                const mobileInput = document.getElementById('customerMobile');
+                if (mobileInput) {
+                    mobileInput.focus();
+                    mobileInput.style.borderColor = 'var(--danger)';
+                }
+                return;
+            }
+            
             // Update display
             document.getElementById('displayName').textContent = name;
             document.getElementById('displayMobile').textContent = mobile;
@@ -3201,9 +3223,12 @@
                                 </label>
                                 <input type="text" id="customerNameInput" name="name" 
                                     class="input-field" 
-                                    placeholder="Enter customer name"
+                                    placeholder="Enter customer name (letters only)"
                                     style="padding: 12px; font-size: 15px;"
+                                    pattern="[A-Za-z\s]+"
+                                    oninput="this.value = this.value.replace(/[^A-Za-z\s]/g, ''); validateName(this)"
                                     autocomplete="off">
+                                <div id="nameError" class="text-xs text-red-600 mt-1 hidden"></div>
                             </div>
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">
@@ -3211,10 +3236,13 @@
                                 </label>
                                 <input type="tel" id="customerMobileInput" name="mobile" required 
                                     class="input-field" 
-                                    placeholder="Enter mobile number"
+                                    placeholder="Enter 10-digit mobile number"
                                     style="padding: 12px; font-size: 15px;"
-                                    pattern="[0-9]{10,15}"
+                                    pattern="[0-9]{10}"
+                                    maxlength="10"
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10); validateMobileNumber(this)"
                                     autocomplete="off">
+                                <div id="mobileError" class="text-xs text-red-600 mt-1 hidden"></div>
                             </div>
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">
@@ -3252,6 +3280,58 @@
             }, 100);
         }
 
+        function validateName(input) {
+            const name = input.value.trim();
+            const errorDiv = document.getElementById('nameError');
+            
+            if (!errorDiv) return;
+            
+            if (name.length === 0) {
+                errorDiv.classList.add('hidden');
+                input.style.borderColor = '';
+                return;
+            }
+            
+            if (!/^[A-Za-z\s]+$/.test(name)) {
+                errorDiv.textContent = 'Name must contain only letters and spaces';
+                errorDiv.classList.remove('hidden');
+                input.style.borderColor = 'var(--danger)';
+            } else if (name.length < 2) {
+                errorDiv.textContent = 'Name must be at least 2 characters';
+                errorDiv.classList.remove('hidden');
+                input.style.borderColor = 'var(--danger)';
+            } else {
+                errorDiv.classList.add('hidden');
+                input.style.borderColor = '#10b981'; // green border for valid
+            }
+        }
+
+        function validateMobileNumber(input) {
+            const mobile = input.value.trim();
+            const errorDiv = document.getElementById('mobileError');
+            
+            if (!errorDiv) return;
+            
+            if (mobile.length === 0) {
+                errorDiv.classList.add('hidden');
+                input.style.borderColor = '';
+                return;
+            }
+            
+            if (mobile.length !== 10) {
+                errorDiv.textContent = 'Mobile number must be exactly 10 digits';
+                errorDiv.classList.remove('hidden');
+                input.style.borderColor = 'var(--danger)';
+            } else if (!/^[0-9]{10}$/.test(mobile)) {
+                errorDiv.textContent = 'Mobile number must contain only digits';
+                errorDiv.classList.remove('hidden');
+                input.style.borderColor = 'var(--danger)';
+            } else {
+                errorDiv.classList.add('hidden');
+                input.style.borderColor = '#10b981'; // green border for valid
+            }
+        }
+
         function submitCustomerInfo(event, paymentMethod, modalElement) {
             event.preventDefault();
             
@@ -3266,9 +3346,25 @@
                 return;
             }
             
-            // Validate mobile number
-            if (mobile.length < 10 || !/^[0-9]+$/.test(mobile)) {
-                alert('Please enter a valid mobile number (10-15 digits)');
+            // Validate mobile number - must be exactly 10 digits
+            if (mobile.length !== 10 || !/^[0-9]{10}$/.test(mobile)) {
+                alert('Please enter a valid 10-digit mobile number');
+                const mobileInput = form.querySelector('#customerMobileInput');
+                if (mobileInput) {
+                    mobileInput.focus();
+                    mobileInput.style.borderColor = 'var(--danger)';
+                }
+                return;
+            }
+            
+            // Validate name if provided - must be only alphabets and spaces
+            if (name && (!/^[A-Za-z\s]+$/.test(name) || name.length < 2)) {
+                alert('Name must contain only letters and be at least 2 characters long');
+                const nameInput = form.querySelector('#customerNameInput');
+                if (nameInput) {
+                    nameInput.focus();
+                    nameInput.style.borderColor = 'var(--danger)';
+                }
                 return;
             }
             
@@ -3282,6 +3378,115 @@
             
             // Proceed with checkout
             checkout(paymentMethod);
+        }
+
+        function showPaymentSuccessModal(invoiceId) {
+            const currentPage = store.getState().currentPage;
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 modal-backdrop flex items-center justify-center z-50';
+            modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            modal.style.backdropFilter = 'blur(4px)';
+            modal.style.zIndex = '9998'; // Lower z-index so print dialog appears on top
+            modal.innerHTML = `
+                <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl" style="animation: slideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);">
+                    <div class="text-center">
+                        <!-- Success Icon with Animation -->
+                        <div class="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-gradient-to-br from-green-400 to-green-600 mb-6 shadow-lg" style="animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;">
+                            <i class="fas fa-check text-5xl text-white"></i>
+                        </div>
+                        
+                        <!-- Success Message -->
+                        <h2 class="text-3xl font-bold text-gray-900 mb-3" style="animation: fadeInUp 0.5s ease-out 0.3s both;">Payment Successful!</h2>
+                        <p class="text-gray-600 mb-1 text-lg" style="animation: fadeInUp 0.5s ease-out 0.4s both;">
+                            Invoice <span class="font-bold text-indigo-600 text-xl">${invoiceId}</span>
+                        </p>
+                        <p class="text-gray-500 text-sm mb-6" style="animation: fadeInUp 0.5s ease-out 0.5s both;">has been created successfully</p>
+                        
+                        <!-- Decorative Line -->
+                        <div class="my-6" style="animation: fadeInUp 0.5s ease-out 0.6s both;">
+                            <div class="h-1 w-32 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full mx-auto"></div>
+                        </div>
+                        
+                        <!-- Action Button -->
+                        <div class="mt-8" style="animation: fadeInUp 0.5s ease-out 0.7s both;">
+                            <button id="continuePaymentBtn" 
+                                class="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white py-3 px-6 rounded-xl font-semibold hover:from-indigo-700 hover:to-indigo-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95">
+                                <i class="fas fa-check mr-2"></i>Continue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <style>
+                    @keyframes slideIn {
+                        from {
+                            opacity: 0;
+                            transform: translateY(-30px) scale(0.9);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translateY(0) scale(1);
+                        }
+                    }
+                    @keyframes scaleIn {
+                        from {
+                            transform: scale(0) rotate(-180deg);
+                        }
+                        to {
+                            transform: scale(1) rotate(0deg);
+                        }
+                    }
+                    @keyframes fadeInUp {
+                        from {
+                            opacity: 0;
+                            transform: translateY(10px);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translateY(0);
+                        }
+                    }
+                </style>
+            `;
+            document.body.appendChild(modal);
+            
+            // After print window closes, bring modal to front
+            setTimeout(() => {
+                modal.style.zIndex = '9999'; // Bring to front after print
+            }, 3000);
+            
+            // Handle continue button click - only way to close modal
+            const continueBtn = modal.querySelector('#continuePaymentBtn');
+            continueBtn.addEventListener('click', () => {
+                // Close any open print windows (not the main window)
+                try {
+                    if (window.currentPrintWindow && !window.currentPrintWindow.closed) {
+                        window.currentPrintWindow.close();
+                    }
+                } catch (e) {}
+                
+                // Determine where to redirect based on current page
+                if (currentPage === 'pos') {
+                    store.navigate('dashboard');
+                } else {
+                    store.navigate('dashboard');
+                }
+                
+                // Close modal with animation
+                modal.style.opacity = '0';
+                modal.style.transition = 'opacity 0.3s ease-out';
+                setTimeout(() => {
+                    if (modal.parentNode) {
+                        modal.remove();
+                    }
+                }, 300);
+            });
+            
+            // Don't allow closing on backdrop click - only Continue button
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    // Do nothing - require Continue button click
+                }
+            });
         }
 
         function checkout(paymentMethod) {
@@ -3403,13 +3608,145 @@
                 }
             });
             
-            alert(`Payment successful! Invoice ${newInvoice.id} created.`);
+            // Show success modal first (it will be in background behind print dialog)
+            showPaymentSuccessModal(newInvoice.id);
+            
+            // Then print invoice (print dialog will appear on top)
             printInvoice(newInvoice.id);
+            
             clearCart();
         }
 
         function viewInvoice(invoiceId) {
-            printInvoice(invoiceId);
+            const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            const invoice = invoices.find(inv => inv.id === invoiceId);
+            if (!invoice) {
+                alert('Invoice not found!');
+                return;
+            }
+            
+            const currencySymbol = getCurrencySymbol();
+            const settings = store.getState().settings;
+            
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 modal-backdrop flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg p-8 max-w-4xl w-full mx-4 animate-fade-in max-h-[90vh] overflow-y-auto shadow-xl">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 style="font-size: 1.75rem; font-weight: 700; color: var(--gray-900);">Invoice Details</h2>
+                            <p class="text-small text-gray-600 mt-1">${invoice.id}</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="printInvoice('${invoiceId}')" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                                <i class="fas fa-print mr-2"></i>Print
+                            </button>
+                            <button onclick="this.closest('.modal-backdrop').remove()" style="background: var(--gray-200); padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; color: var(--gray-700);" onmouseover="this.style.background='var(--gray-300)'" onmouseout="this.style.background='var(--gray-200)'">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Invoice Header -->
+                    <div class="bg-gradient-to-r from-indigo-600 to-indigo-800 text-white p-6 rounded-lg mb-6">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 8px;">${settings.businessName}</h3>
+                                <p class="text-sm opacity-90">INVOICE</p>
+                            </div>
+                            <div class="text-right">
+                                <div style="font-size: 1.25rem; font-weight: 700;">${invoice.id}</div>
+                                <div class="text-sm opacity-90 mt-1">${invoice.date}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid md:grid-cols-2 gap-6 mb-6">
+                        <!-- Customer Information -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 style="font-size: 1rem; font-weight: 600; color: var(--gray-800); margin-bottom: 12px;">Customer Information</h4>
+                            <div class="space-y-2 text-sm">
+                                <div><strong>Name:</strong> ${invoice.customer}</div>
+                                ${invoice.customerPhone ? `<div><strong>Phone:</strong> ${invoice.customerPhone}</div>` : ''}
+                                ${invoice.customerEmail ? `<div><strong>Email:</strong> ${invoice.customerEmail}</div>` : ''}
+                            </div>
+                        </div>
+                        
+                        <!-- Payment Information -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 style="font-size: 1rem; font-weight: 600; color: var(--gray-800); margin-bottom: 12px;">Payment Information</h4>
+                            <div class="space-y-2 text-sm">
+                                <div><strong>Payment Method:</strong> 
+                                    <span class="px-3 py-1 ${invoice.payment === 'Cash' ? 'bg-green-100 text-green-800' : invoice.payment === 'UPI' ? 'bg-purple-100 text-purple-800' : invoice.payment === 'Credit Note' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'} rounded-full text-xs font-semibold ml-2">
+                                        ${invoice.payment}
+                                    </span>
+                                </div>
+                                <div><strong>Status:</strong> 
+                                    <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold ml-2">
+                                        ${invoice.status || 'Completed'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Items Table -->
+                    <div class="mb-6">
+                        <h4 style="font-size: 1rem; font-weight: 600; color: var(--gray-800); margin-bottom: 12px;">Items</h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full border-collapse">
+                                <thead>
+                                    <tr class="bg-gray-50">
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Item</th>
+                                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Quantity</th>
+                                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Unit Price</th>
+                                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200">
+                                    ${invoice.items.map(item => `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-gray-800 font-medium">${item.name}</td>
+                                            <td class="px-4 py-3 text-center text-gray-600">${item.qty}</td>
+                                            <td class="px-4 py-3 text-right text-gray-600">${currencySymbol}${item.price.toFixed(2)}</td>
+                                            <td class="px-4 py-3 text-right font-semibold text-gray-800">${currencySymbol}${(item.qty * item.price).toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Totals -->
+                    <div class="bg-gray-50 p-6 rounded-lg">
+                        <div class="flex justify-end">
+                            <div class="w-full max-w-md space-y-3">
+                                <div class="flex justify-between text-gray-700">
+                                    <span>Subtotal:</span>
+                                    <span class="font-semibold">${currencySymbol}${invoice.subtotal.toFixed(2)}</span>
+                                </div>
+                                ${invoice.discount > 0 ? `
+                                    <div class="flex justify-between text-green-600">
+                                        <span>Discount:</span>
+                                        <span class="font-semibold">-${currencySymbol}${invoice.discount.toFixed(2)}</span>
+                                    </div>
+                                ` : ''}
+                                <div class="flex justify-between text-gray-700">
+                                    <span>Tax (${settings.taxRate}%):</span>
+                                    <span class="font-semibold">${currencySymbol}${invoice.tax.toFixed(2)}</span>
+                                </div>
+                                <div class="border-t-2 border-gray-300 pt-3 mt-3">
+                                    <div class="flex justify-between">
+                                        <span style="font-size: 1.25rem; font-weight: 700; color: var(--gray-900);">Total:</span>
+                                        <span style="font-size: 1.25rem; font-weight: 700; color: var(--primary);">${currencySymbol}${invoice.total.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
         }
 
         function printInvoice(invoiceId) {
@@ -3417,7 +3754,8 @@
             const invoice = invoices.find(inv => inv.id === invoiceId);
             if (!invoice) return;
             const currencySymbol = getCurrencySymbol();
-            const printWindow = window.open('', '', 'width=800,height=600');
+            const printWindow = window.open('', '_blank', 'width=800,height=600');
+            window.currentPrintWindow = printWindow; // Store reference
             printWindow.document.write(`
                 <!DOCTYPE html>
                 <html>
@@ -3487,7 +3825,50 @@
                 </html>
             `);
             printWindow.document.close();
+            
+            // Add script to auto-close after print
+            const script = printWindow.document.createElement('script');
+            script.textContent = 'window.addEventListener("afterprint", function() { setTimeout(function() { window.close(); }, 100); }); window.onfocus = function() { setTimeout(function() { if (document.hasFocus()) { window.close(); } }, 500); };';
+            printWindow.document.body.appendChild(script);
+            
+            // Trigger print (print dialog will appear on top of the modal)
+            printWindow.focus();
             printWindow.print();
+            
+            // Monitor when print window closes to bring modal to front
+            const checkPrintClosed = setInterval(() => {
+                try {
+                    if (printWindow.closed) {
+                        clearInterval(checkPrintClosed);
+                        // Bring modal to front after print window closes
+                        setTimeout(() => {
+                            const modalElement = document.querySelector('.modal-backdrop');
+                            if (modalElement) {
+                                modalElement.style.zIndex = '9999';
+                            }
+                        }, 100);
+                    }
+                } catch (e) {
+                    clearInterval(checkPrintClosed);
+                }
+            }, 100);
+            
+            // Fallback: Close print window after 5 seconds if still open
+            setTimeout(() => {
+                clearInterval(checkPrintClosed);
+                try {
+                    if (!printWindow.closed) {
+                        printWindow.close();
+                    }
+                } catch (e) {}
+                // Bring modal to front
+                setTimeout(() => {
+                    const modalElement = document.querySelector('.modal-backdrop');
+                    if (modalElement) {
+                        modalElement.style.zIndex = '9999';
+                    }
+                }, 100);
+            }, 5000);
         }
 
         function scanBarcode() {
