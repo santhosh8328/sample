@@ -1037,6 +1037,10 @@
                                 <i class="fas fa-chart-bar"></i>
                                 <span>Reports</span>
                             </a>
+                            <a href="#" onclick="store.navigate('campaigns')" class="flex items-center space-x-3 px-4 py-3 rounded-lg ${currentPage === 'campaigns' ? 'sidebar-active' : 'hover:bg-gray-100'} transition">
+                                <i class="fas fa-bullhorn"></i>
+                                <span>Campaigns</span>
+                            </a>
                             <a href="#" onclick="store.navigate('settings')" class="flex items-center space-x-3 px-4 py-3 rounded-lg ${currentPage === 'settings' ? 'sidebar-active' : 'hover:bg-gray-100'} transition">
                                 <i class="fas fa-cog"></i>
                                 <span>Settings</span>
@@ -1595,9 +1599,6 @@
                                     <div class="text-xs text-gray-600">
                                         Showing ${customersWithStats.length} of ${customers.length} customers
                                     </div>
-                                    <button onclick="applyCustomerFilters()" class="btn btn-primary" style="padding: 8px 20px; font-size: 14px;">
-                                        <i class="fas fa-check mr-2"></i>Apply
-                                    </button>
                                 </div>
                             </div>
                             <div class="overflow-x-auto">
@@ -2034,6 +2035,133 @@
             `;
         }
 
+        function CampaignsPage() {
+            const customers = JSON.parse(localStorage.getItem('customers') || '[]');
+            const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            
+            // Get campaign history
+            const campaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
+            
+            // Calculate customer segments
+            const allCustomers = customers.map(c => {
+                const customerInvoices = invoices.filter(inv => inv.customer === c.name || inv.customerPhone === c.phone);
+                const totalSpent = customerInvoices.reduce((sum, inv) => sum + inv.total, 0);
+                return {
+                    ...c,
+                    totalSpent,
+                    orderCount: customerInvoices.length,
+                    lastPurchase: customerInvoices.length > 0 ? customerInvoices.sort((a, b) => new Date(b.date) - new Date(a.date))[0].date : null
+                };
+            });
+            
+            return `
+                <div class="flex">
+                    ${POSSidebar()}
+                    <main class="flex-1 p-8 overflow-y-auto animate-fade-in">
+                        <div class="flex justify-between items-center mb-8">
+                            <h1 class="text-3xl font-bold text-gray-800">Email & SMS Campaigns</h1>
+                            <button onclick="showNewCampaignModal()" class="btn btn-primary">
+                                <i class="fas fa-plus mr-2"></i>New Campaign
+                            </button>
+                        </div>
+                        
+                        <!-- Campaign Stats -->
+                        <div class="grid md:grid-cols-4 gap-6 mb-8">
+                            <div class="bg-white rounded-lg shadow-sm p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm text-gray-600 mb-1">Total Campaigns</p>
+                                        <p class="text-2xl font-bold text-gray-800">${campaigns.length}</p>
+                                    </div>
+                                    <div class="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-bullhorn text-indigo-600 text-xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-sm p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm text-gray-600 mb-1">Total Recipients</p>
+                                        <p class="text-2xl font-bold text-gray-800">${campaigns.reduce((sum, c) => sum + (c.recipients?.length || 0), 0)}</p>
+                                    </div>
+                                    <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-users text-green-600 text-xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-sm p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm text-gray-600 mb-1">Email Sent</p>
+                                        <p class="text-2xl font-bold text-gray-800">${campaigns.filter(c => c.type === 'email').length}</p>
+                                    </div>
+                                    <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-envelope text-blue-600 text-xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-sm p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm text-gray-600 mb-1">SMS Sent</p>
+                                        <p class="text-2xl font-bold text-gray-800">${campaigns.filter(c => c.type === 'sms').length}</p>
+                                    </div>
+                                    <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-sms text-purple-600 text-xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Campaign List -->
+                        <div class="bg-white rounded-lg shadow-sm p-6">
+                            <h2 class="text-xl font-bold text-gray-800 mb-4">Campaign History</h2>
+                            ${campaigns.length > 0 ? `
+                                <div class="space-y-4">
+                                    ${campaigns.map((campaign, index) => `
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                                            <div class="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <div class="flex items-center gap-3 mb-2">
+                                                        <h3 class="text-lg font-semibold text-gray-800">${campaign.subject || campaign.title}</h3>
+                                                        <span class="px-3 py-1 ${campaign.type === 'email' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'} rounded-full text-xs font-semibold">
+                                                            ${campaign.type === 'email' ? 'Email' : 'SMS'}
+                                                        </span>
+                                                        <span class="px-3 py-1 ${campaign.status === 'sent' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'} rounded-full text-xs font-semibold">
+                                                            ${campaign.status || 'Draft'}
+                                                        </span>
+                                                    </div>
+                                                    <p class="text-sm text-gray-600 mb-2">${campaign.message || campaign.content}</p>
+                                                    <div class="flex items-center gap-4 text-xs text-gray-500">
+                                                        <span><i class="fas fa-users mr-1"></i>${campaign.recipients?.length || 0} recipients</span>
+                                                        <span><i class="fas fa-calendar mr-1"></i>${campaign.date || new Date().toLocaleDateString()}</span>
+                                                        ${campaign.segment ? `<span><i class="fas fa-filter mr-1"></i>${campaign.segment}</span>` : ''}
+                                                    </div>
+                                                </div>
+                                                <div class="flex gap-2">
+                                                    <button onclick="viewCampaign(${index})" class="btn btn-primary" style="padding: 6px 12px; font-size: 14px;">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button onclick="deleteCampaign(${index})" class="btn" style="background: var(--danger); color: white; padding: 6px 12px; font-size: 14px;">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : `
+                                <div class="text-center py-12 text-gray-500">
+                                    <i class="fas fa-bullhorn text-4xl mb-4 text-gray-300"></i>
+                                    <p>No campaigns yet. Create your first campaign to reach out to customers!</p>
+                                </div>
+                            `}
+                        </div>
+                    </main>
+                </div>
+            `;
+        }
+
         function ReportsPage() {
             const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
             const purchaseOrders = JSON.parse(localStorage.getItem('purchaseOrders') || '[]');
@@ -2312,6 +2440,252 @@
                             </div>
                         </div>
 
+                        <!-- Seasonal Pattern Analysis -->
+                        <div class="card mb-6">
+                            <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem;">Seasonal Pattern Analysis</h2>
+                            ${(() => {
+                                // Calculate sales by month
+                                const monthlySales = {};
+                                const monthlyCounts = {};
+                                salesTransactions.forEach(t => {
+                                    const date = new Date(t.date);
+                                    const monthKey = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+                                    if (!monthlySales[monthKey]) {
+                                        monthlySales[monthKey] = 0;
+                                        monthlyCounts[monthKey] = 0;
+                                    }
+                                    monthlySales[monthKey] += t.total;
+                                    monthlyCounts[monthKey] += 1;
+                                });
+                                
+                                // Calculate seasonal trends
+                                const seasonalData = {};
+                                salesTransactions.forEach(t => {
+                                    const date = new Date(t.date);
+                                    const month = date.getMonth();
+                                    let season = 'Spring';
+                                    if (month >= 2 && month <= 4) season = 'Spring';
+                                    else if (month >= 5 && month <= 7) season = 'Summer';
+                                    else if (month >= 8 && month <= 10) season = 'Fall';
+                                    else season = 'Winter';
+                                    
+                                    if (!seasonalData[season]) {
+                                        seasonalData[season] = { total: 0, count: 0 };
+                                    }
+                                    seasonalData[season].total += t.total;
+                                    seasonalData[season].count += 1;
+                                });
+                                
+                                const maxMonthly = Math.max(...Object.values(monthlySales), 0);
+                                const maxSeasonal = Math.max(...Object.values(seasonalData).map(s => s.total), 0);
+                                
+                                return `
+                                    <div class="grid md:grid-cols-2 gap-6 mb-6">
+                                        <div>
+                                            <h3 class="text-lg font-semibold mb-4 text-gray-700">Monthly Sales Trend</h3>
+                                            <div class="space-y-3">
+                                                ${Object.entries(monthlySales).sort((a, b) => new Date(a[0]) - new Date(b[0])).map(([month, amount]) => {
+                                                    const percentage = maxMonthly > 0 ? ((amount / maxMonthly) * 100).toFixed(0) : 0;
+                                                    return `
+                                                        <div>
+                                                            <div class="flex justify-between mb-2">
+                                                                <span class="font-semibold text-gray-800">${month}</span>
+                                                                <span class="font-bold text-indigo-600">${formatCurrency(amount)}</span>
+                                                            </div>
+                                                            <div class="flex items-center gap-2">
+                                                                <div style="background: var(--gray-200); height: 8px; border-radius: 4px; overflow: hidden; flex: 1;">
+                                                                    <div style="background: linear-gradient(90deg, #4f46e5, #7c3aed); height: 100%; width: ${percentage}%; transition: width 0.3s;"></div>
+                                                                </div>
+                                                                <span class="text-xs text-gray-600">${monthlyCounts[month]} orders</span>
+                                                            </div>
+                                                        </div>
+                                                    `;
+                                                }).join('') || '<p class="text-gray-500 text-center py-4">No monthly data available</p>'}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-lg font-semibold mb-4 text-gray-700">Seasonal Performance</h3>
+                                            <div class="space-y-3">
+                                                ${Object.entries(seasonalData).map(([season, data]) => {
+                                                    const percentage = maxSeasonal > 0 ? ((data.total / maxSeasonal) * 100).toFixed(0) : 0;
+                                                    const avgOrder = data.count > 0 ? (data.total / data.count) : 0;
+                                                    return `
+                                                        <div class="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-200">
+                                                            <div class="flex justify-between items-center mb-2">
+                                                                <span class="font-bold text-gray-800 text-lg">${season}</span>
+                                                                <span class="font-bold text-indigo-600 text-lg">${formatCurrency(data.total)}</span>
+                                                            </div>
+                                                            <div class="text-sm text-gray-600 mb-2">
+                                                                ${data.count} orders • Avg: ${formatCurrency(avgOrder)}
+                                                            </div>
+                                                            <div style="background: var(--gray-200); height: 10px; border-radius: 5px; overflow: hidden;">
+                                                                <div style="background: linear-gradient(90deg, #6366f1, #8b5cf6); height: 100%; width: ${percentage}%;"></div>
+                                                            </div>
+                                                        </div>
+                                                    `;
+                                                }).join('') || '<p class="text-gray-500 text-center py-4">No seasonal data available</p>'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            })()}
+                        </div>
+
+                        <!-- Peak Hours/Day Analysis -->
+                        <div class="card mb-6">
+                            <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem;">Peak Hours & Day Analysis</h2>
+                            ${(() => {
+                                // Calculate sales by day of week
+                                const daySales = {
+                                    'Sunday': 0, 'Monday': 0, 'Tuesday': 0, 'Wednesday': 0,
+                                    'Thursday': 0, 'Friday': 0, 'Saturday': 0
+                                };
+                                const dayCounts = {
+                                    'Sunday': 0, 'Monday': 0, 'Tuesday': 0, 'Wednesday': 0,
+                                    'Thursday': 0, 'Friday': 0, 'Saturday': 0
+                                };
+                                
+                                salesTransactions.forEach(t => {
+                                    const date = new Date(t.date);
+                                    const dayName = date.toLocaleString('default', { weekday: 'long' });
+                                    daySales[dayName] += t.total;
+                                    dayCounts[dayName] += 1;
+                                });
+                                
+                                // For peak hours, we'll use a simulated approach since invoices don't have time
+                                // In production, you'd track time with each transaction
+                                const peakHours = {
+                                    'Morning (9-12)': salesTransactions.length * 0.25,
+                                    'Afternoon (12-5)': salesTransactions.length * 0.40,
+                                    'Evening (5-9)': salesTransactions.length * 0.30,
+                                    'Night (9-12)': salesTransactions.length * 0.05
+                                };
+                                
+                                const maxDay = Math.max(...Object.values(daySales), 0);
+                                const maxHour = Math.max(...Object.values(peakHours), 0);
+                                
+                                const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                                
+                                return `
+                                    <div class="grid md:grid-cols-2 gap-6">
+                                        <div>
+                                            <h3 class="text-lg font-semibold mb-4 text-gray-700">Sales by Day of Week</h3>
+                                            <div class="space-y-3">
+                                                ${dayOrder.map(day => {
+                                                    const amount = daySales[day];
+                                                    const count = dayCounts[day];
+                                                    const percentage = maxDay > 0 ? ((amount / maxDay) * 100).toFixed(0) : 0;
+                                                    return `
+                                                        <div>
+                                                            <div class="flex justify-between mb-2">
+                                                                <span class="font-semibold text-gray-800">${day}</span>
+                                                                <span class="font-bold text-green-600">${formatCurrency(amount)}</span>
+                                                            </div>
+                                                            <div class="flex items-center gap-2">
+                                                                <div style="background: var(--gray-200); height: 8px; border-radius: 4px; overflow: hidden; flex: 1;">
+                                                                    <div style="background: linear-gradient(90deg, #10b981, #059669); height: 100%; width: ${percentage}%;"></div>
+                                                                </div>
+                                                                <span class="text-xs text-gray-600">${count} orders</span>
+                                                            </div>
+                                                        </div>
+                                                    `;
+                                                }).join('')}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-lg font-semibold mb-4 text-gray-700">Peak Hours Distribution</h3>
+                                            <div class="space-y-3">
+                                                ${Object.entries(peakHours).map(([period, count]) => {
+                                                    const percentage = maxHour > 0 ? ((count / maxHour) * 100).toFixed(0) : 0;
+                                                    return `
+                                                        <div>
+                                                            <div class="flex justify-between mb-2">
+                                                                <span class="font-semibold text-gray-800">${period}</span>
+                                                                <span class="font-bold text-purple-600">~${Math.round(count)} transactions</span>
+                                                            </div>
+                                                            <div style="background: var(--gray-200); height: 8px; border-radius: 4px; overflow: hidden;">
+                                                                <div style="background: linear-gradient(90deg, #a855f7, #9333ea); height: 100%; width: ${percentage}%;"></div>
+                                                            </div>
+                                                            <p class="text-xs text-gray-500 mt-1">Note: Time tracking needed for accurate data</p>
+                                                        </div>
+                                                    `;
+                                                }).join('')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            })()}
+                        </div>
+
+                        <!-- Tax Reports Section -->
+                        <div class="card mb-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 style="font-size: 1.5rem; font-weight: 600;">Tax Reports</h2>
+                                <button onclick="exportTaxReport()" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                                    <i class="fas fa-download mr-2"></i>Export Tax Report
+                                </button>
+                            </div>
+                            ${(() => {
+                                const settings = store.getState().settings;
+                                const taxRates = settings.taxRates || [];
+                                
+                                // Calculate tax by type
+                                const taxByType = {};
+                                salesTransactions.forEach(t => {
+                                    const taxAmount = t.tax || 0;
+                                    const taxRate = t.taxRate || settings.taxRate;
+                                    const taxType = t.taxType || settings.defaultTaxType || 'gst';
+                                    
+                                    if (!taxByType[taxType]) {
+                                        taxByType[taxType] = { total: 0, count: 0, rate: taxRate };
+                                    }
+                                    taxByType[taxType].total += taxAmount;
+                                    taxByType[taxType].count += 1;
+                                });
+                                
+                                const totalTaxCollected = salesTransactions.reduce((sum, t) => sum + (t.tax || 0), 0);
+                                
+                                return `
+                                    <div class="grid md:grid-cols-3 gap-4 mb-6">
+                                        <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200">
+                                            <div class="text-sm font-semibold text-blue-700 mb-2">Total Tax Collected</div>
+                                            <div class="text-3xl font-bold text-blue-900">${formatCurrency(totalTaxCollected)}</div>
+                                            <div class="text-xs text-blue-600 mt-2">From ${salesTransactions.length} transactions</div>
+                                        </div>
+                                        <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg border border-green-200">
+                                            <div class="text-sm font-semibold text-green-700 mb-2">Taxable Sales</div>
+                                            <div class="text-3xl font-bold text-green-900">${formatCurrency(salesTransactions.reduce((sum, t) => sum + (t.subtotal || t.total - (t.tax || 0)), 0))}</div>
+                                        </div>
+                                        <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-lg border border-purple-200">
+                                            <div class="text-sm font-semibold text-purple-700 mb-2">Average Tax Rate</div>
+                                            <div class="text-3xl font-bold text-purple-900">${taxRates.length > 0 ? taxRates.find(t => t.type === settings.defaultTaxType)?.rate || settings.taxRate : settings.taxRate}%</div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold mb-4 text-gray-700">Tax Breakdown by Type</h3>
+                                        <div class="space-y-3">
+                                            ${taxRates.length > 0 ? taxRates.map(tax => {
+                                                const taxData = taxByType[tax.type] || { total: 0, count: 0 };
+                                                return `
+                                                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                                        <div>
+                                                            <div class="font-semibold text-gray-800">${tax.name} (${tax.rate}%)</div>
+                                                            <div class="text-sm text-gray-600">${taxData.count} transactions</div>
+                                                        </div>
+                                                        <div class="text-xl font-bold text-indigo-600">${formatCurrency(taxData.total)}</div>
+                                                    </div>
+                                                `;
+                                            }).join('') : `
+                                                <div class="p-4 bg-gray-50 rounded-lg text-center text-gray-500">
+                                                    Configure tax rates in Settings to see detailed breakdown
+                                                </div>
+                                            `}
+                                        </div>
+                                    </div>
+                                `;
+                            })()}
+                        </div>
+
                         <div class="card">
                             <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem;">Transactions ${filters.quickFilter !== 'all' || filters.dateFrom || filters.dateTo || filters.paymentMethod || filters.orderType !== 'all' ? '(Filtered)' : ''}</h2>
                             <div class="overflow-x-auto">
@@ -2524,6 +2898,31 @@
                                 <div class="stat-label">Slow-Moving Stock</div>
                                 <div class="stat-value" style="color: var(--warning);">${slowMovingProducts.length}</div>
                                 <div class="text-small mt-2">${formatCurrency(slowMovingProducts.reduce((sum, p) => sum + p.stockValue, 0))} tied up</div>
+                            </div>
+                        </div>
+
+                        <!-- Physical Inventory Scanning Section -->
+                        <div class="card mb-8">
+                            <div class="flex justify-between items-center mb-6">
+                                <div>
+                                    <h2 style="font-size: 1.5rem; font-weight: 600;">Physical Inventory Audit</h2>
+                                    <p class="text-small text-gray-600 mt-1">Scan products to identify missing items or theft</p>
+                                </div>
+                                <button onclick="startPhysicalInventoryScan()" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                                    <i class="fas fa-barcode mr-2"></i>Start Physical Count
+                                </button>
+                            </div>
+                            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                                <div class="flex items-start">
+                                    <i class="fas fa-info-circle text-yellow-600 mt-1 mr-3"></i>
+                                    <div class="text-sm text-yellow-800">
+                                        <strong>How it works:</strong> Scan or search products to count physical stock. The system will compare with recorded stock to identify discrepancies, missing items, or potential theft.
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="physicalInventoryResults" class="hidden">
+                                <h3 class="text-lg font-semibold mb-4 text-gray-800">Audit Results</h3>
+                                <div id="discrepancyList" class="space-y-3"></div>
                             </div>
                         </div>
 
@@ -2870,22 +3269,53 @@
                                         <input type="text" id="businessName" value="${settings.businessName}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600">
                                     </div>
                                     <div>
-                                        <label class="block text-gray-700 mb-2 font-medium">Tax Rate (%)</label>
+                                        <label class="block text-gray-700 mb-2 font-medium">Default Tax Rate (%)</label>
                                         <input type="number" id="taxRate" value="${settings.taxRate}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600">
+                                        <p class="text-xs text-gray-500 mt-1">Used as fallback for backward compatibility</p>
                                     </div>
                                     <div>
                                         <label class="block text-gray-700 mb-2 font-medium">Currency</label>
-                                        <select id="currency" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600">
-                                            <option value="INR" ${settings.currency === 'INR' ? 'selected' : ''}>INR - Indian Rupee</option>
-                                            <option value="USD" ${settings.currency === 'USD' ? 'selected' : ''}>USD - US Dollar</option>
-                                            <option value="EUR" ${settings.currency === 'EUR' ? 'selected' : ''}>EUR - Euro</option>
-                                            <option value="GBP" ${settings.currency === 'GBP' ? 'selected' : ''}>GBP - British Pound</option>
-                                        </select>
+                                        <div class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                                            INR - Indian Rupee
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h2 class="text-xl font-bold text-gray-800">Tax Rates Management</h2>
+                                    <button onclick="showAddTaxRateModal()" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                                        <i class="fas fa-plus mr-2"></i>Add Tax Rate
+                                    </button>
+                                </div>
+                                <div class="space-y-3" id="taxRatesList">
+                                    ${(settings.taxRates || []).map((tax, index) => `
+                                        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                            <div class="flex items-center gap-4">
+                                                <div>
+                                                    <div class="font-semibold text-gray-800">${tax.name}</div>
+                                                    <div class="text-sm text-gray-600">${tax.rate}% • ${tax.type.toUpperCase()}</div>
+                                                </div>
+                                                ${settings.defaultTaxType === tax.type ? '<span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">Default</span>' : ''}
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <button onclick="setDefaultTaxType('${tax.type}')" class="btn" style="padding: 6px 12px; font-size: 14px; ${settings.defaultTaxType === tax.type ? 'background: var(--gray-200);' : ''}">
+                                                    <i class="fas fa-check-circle"></i> Set Default
+                                                </button>
+                                                <button onclick="deleteTaxRate(${index})" class="btn" style="background: var(--danger); color: white; padding: 6px 12px; font-size: 14px;">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                    ${(!settings.taxRates || settings.taxRates.length === 0) ? `
+                                        <div class="text-center py-8 text-gray-500">
+                                            <i class="fas fa-receipt text-4xl mb-4 text-gray-300"></i>
+                                            <p>No tax rates configured. Add your first tax rate above.</p>
+                                        </div>
+                                    ` : ''}
+                                </div>
                             </div>
 
                             <div class="bg-white rounded-lg shadow-sm p-6">
@@ -2893,9 +3323,6 @@
                                 <div class="space-y-3">
                                     <button onclick="exportData()" class="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition">
                                         <i class="fas fa-download mr-2"></i>Export All Data
-                                    </button>
-                                    <button onclick="if(confirm('Reset all data? This cannot be undone!')) resetData()" class="w-full bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition">
-                                        <i class="fas fa-exclamation-triangle mr-2"></i>Reset All Data
                                     </button>
                                 </div>
                             </div>
@@ -4483,14 +4910,112 @@
         }
 
         function saveSettings() {
+            const currentSettings = store.getState().settings;
             const settings = {
                 businessName: document.getElementById('businessName').value,
                 taxRate: parseFloat(document.getElementById('taxRate').value),
-                currency: document.getElementById('currency').value,
+                currency: 'INR',
+                taxRates: currentSettings.taxRates || [],
+                defaultTaxType: currentSettings.defaultTaxType || 'gst'
             };
             localStorage.setItem('settings', JSON.stringify(settings));
             store.setState({ settings });
             alert('Settings saved successfully!');
+        }
+
+        function showAddTaxRateModal() {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 modal-backdrop flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4 animate-fade-in">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">Add Tax Rate</h2>
+                        <button onclick="this.closest('.modal-backdrop').remove()" style="background: var(--gray-200); padding: 8px 12px; border-radius: 8px; border: none; cursor: pointer; color: var(--gray-700);">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form onsubmit="event.preventDefault(); addTaxRate(this); this.closest('.modal-backdrop').remove();">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-gray-700 mb-2 font-semibold">Tax Name</label>
+                                <input type="text" name="name" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" placeholder="e.g., GST, VAT, Service Tax">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 mb-2 font-semibold">Tax Rate (%)</label>
+                                <input type="number" name="rate" step="0.01" min="0" max="100" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" placeholder="e.g., 18, 10, 5">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 mb-2 font-semibold">Tax Type</label>
+                                <select name="type" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600">
+                                    <option value="gst">GST</option>
+                                    <option value="vat">VAT</option>
+                                    <option value="service">Service Tax</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex gap-3 mt-6">
+                            <button type="button" onclick="this.closest('.modal-backdrop').remove()" class="flex-1" style="background: var(--gray-200); color: var(--gray-700); padding: 12px; border-radius: 10px; font-weight: 600; border: none; cursor: pointer;">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 btn-primary" style="padding: 12px; border-radius: 10px; font-weight: 600;">
+                                <i class="fas fa-plus mr-2"></i>Add Tax Rate
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function addTaxRate(form) {
+            const settings = store.getState().settings;
+            const taxRates = settings.taxRates || [];
+            
+            const newTax = {
+                name: form.name.value,
+                rate: parseFloat(form.rate.value),
+                type: form.type.value
+            };
+            
+            taxRates.push(newTax);
+            
+            const updatedSettings = {
+                ...settings,
+                taxRates,
+                defaultTaxType: settings.defaultTaxType || newTax.type
+            };
+            
+            localStorage.setItem('settings', JSON.stringify(updatedSettings));
+            store.setState({ settings: updatedSettings });
+            store.navigate('settings');
+        }
+
+        function setDefaultTaxType(type) {
+            const settings = store.getState().settings;
+            const updatedSettings = {
+                ...settings,
+                defaultTaxType: type
+            };
+            localStorage.setItem('settings', JSON.stringify(updatedSettings));
+            store.setState({ settings: updatedSettings });
+            store.navigate('settings');
+        }
+
+        function deleteTaxRate(index) {
+            if (!confirm('Delete this tax rate?')) return;
+            const settings = store.getState().settings;
+            const taxRates = settings.taxRates || [];
+            taxRates.splice(index, 1);
+            
+            const updatedSettings = {
+                ...settings,
+                taxRates
+            };
+            
+            localStorage.setItem('settings', JSON.stringify(updatedSettings));
+            store.setState({ settings: updatedSettings });
+            store.navigate('settings');
         }
 
         function exportData() {
@@ -4512,6 +5037,204 @@
             localStorage.clear();
             store.initData();
             store.navigate('dashboard');
+        }
+
+        function showNewCampaignModal() {
+            const customers = JSON.parse(localStorage.getItem('customers') || '[]');
+            const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            
+            // Calculate customer segments
+            const allCustomers = customers.map(c => {
+                const customerInvoices = invoices.filter(inv => inv.customer === c.name || inv.customerPhone === c.phone);
+                const totalSpent = customerInvoices.reduce((sum, inv) => sum + inv.total, 0);
+                return { ...c, totalSpent, orderCount: customerInvoices.length };
+            });
+            
+            const vipCustomers = allCustomers.filter(c => c.totalSpent >= 5000).length;
+            const regularCustomers = allCustomers.filter(c => c.totalSpent >= 1000 && c.totalSpent < 5000).length;
+            const newCustomers = allCustomers.filter(c => c.totalSpent < 1000).length;
+            
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 modal-backdrop flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 animate-fade-in max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">Create New Campaign</h2>
+                        <button onclick="this.closest('.modal-backdrop').remove()" style="background: var(--gray-200); padding: 8px 12px; border-radius: 8px; border: none; cursor: pointer; color: var(--gray-700);">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form onsubmit="event.preventDefault(); createCampaign(this); this.closest('.modal-backdrop').remove();">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-gray-700 mb-2 font-semibold">Campaign Type</label>
+                                <select name="type" id="campaignType" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" onchange="toggleCampaignFields()">
+                                    <option value="email">Email Campaign</option>
+                                    <option value="sms">SMS Campaign</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 mb-2 font-semibold">Subject / Title</label>
+                                <input type="text" name="subject" id="campaignSubject" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" placeholder="Enter campaign subject">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 mb-2 font-semibold">Message</label>
+                                <textarea name="message" id="campaignMessage" rows="5" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600" placeholder="Enter your message here..."></textarea>
+                                <p class="text-xs text-gray-500 mt-1" id="smsCharCount">0/160 characters (SMS limit)</p>
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 mb-2 font-semibold">Target Segment</label>
+                                <select name="segment" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600">
+                                    <option value="all">All Customers (${customers.length})</option>
+                                    <option value="vip">VIP Customers (${vipCustomers})</option>
+                                    <option value="regular">Regular Customers (${regularCustomers})</option>
+                                    <option value="new">New Customers (${newCustomers})</option>
+                                </select>
+                            </div>
+                            <div class="bg-blue-50 p-4 rounded-lg">
+                                <p class="text-sm text-blue-800">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    <strong>Note:</strong> In a production environment, this would integrate with email/SMS services like SendGrid, Twilio, or AWS SES. 
+                                    For now, campaigns are saved locally and can be exported for external sending.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex gap-3 mt-6">
+                            <button type="button" onclick="this.closest('.modal-backdrop').remove()" class="flex-1" style="background: var(--gray-200); color: var(--gray-700); padding: 12px; border-radius: 10px; font-weight: 600; border: none; cursor: pointer;">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 btn-primary" style="padding: 12px; border-radius: 10px; font-weight: 600;">
+                                <i class="fas fa-paper-plane mr-2"></i>Send Campaign
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Update SMS character count
+            const messageField = modal.querySelector('#campaignMessage');
+            const charCount = modal.querySelector('#smsCharCount');
+            const typeField = modal.querySelector('#campaignType');
+            
+            messageField.addEventListener('input', function() {
+                if (typeField.value === 'sms') {
+                    charCount.textContent = `${this.value.length}/160 characters (SMS limit)`;
+                    if (this.value.length > 160) {
+                        charCount.classList.add('text-red-600');
+                    } else {
+                        charCount.classList.remove('text-red-600');
+                    }
+                }
+            });
+        }
+
+        function toggleCampaignFields() {
+            const type = document.getElementById('campaignType').value;
+            const charCount = document.getElementById('smsCharCount');
+            if (type === 'sms') {
+                charCount.classList.remove('hidden');
+            } else {
+                charCount.classList.add('hidden');
+            }
+        }
+
+        function createCampaign(form) {
+            const type = form.type.value;
+            const subject = form.subject.value;
+            const message = form.message.value;
+            const segment = form.segment.value;
+            
+            const customers = JSON.parse(localStorage.getItem('customers') || '[]');
+            const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            
+            // Filter recipients based on segment
+            let recipients = [];
+            if (segment === 'all') {
+                recipients = customers;
+            } else {
+                recipients = customers.filter(c => {
+                    const customerInvoices = invoices.filter(inv => inv.customer === c.name || inv.customerPhone === c.phone);
+                    const totalSpent = customerInvoices.reduce((sum, inv) => sum + inv.total, 0);
+                    if (segment === 'vip') return totalSpent >= 5000;
+                    if (segment === 'regular') return totalSpent >= 1000 && totalSpent < 5000;
+                    if (segment === 'new') return totalSpent < 1000;
+                    return true;
+                });
+            }
+            
+            const campaign = {
+                id: Date.now(),
+                type,
+                subject,
+                message,
+                segment,
+                recipients: recipients.map(c => ({ name: c.name, email: c.email, phone: c.phone })),
+                date: new Date().toISOString().split('T')[0],
+                status: 'sent'
+            };
+            
+            const campaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
+            campaigns.unshift(campaign);
+            localStorage.setItem('campaigns', JSON.stringify(campaigns));
+            
+            alert(`Campaign created successfully! ${recipients.length} ${type === 'email' ? 'emails' : 'SMS messages'} would be sent.`);
+            store.navigate('campaigns');
+        }
+
+        function viewCampaign(index) {
+            const campaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
+            const campaign = campaigns[index];
+            if (!campaign) return;
+            
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 modal-backdrop flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 animate-fade-in max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">Campaign Details</h2>
+                        <button onclick="this.closest('.modal-backdrop').remove()" style="background: var(--gray-200); padding: 8px 12px; border-radius: 8px; border: none; cursor: pointer; color: var(--gray-700);">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-sm font-semibold text-gray-600">Type</label>
+                            <p class="text-lg">${campaign.type === 'email' ? 'Email' : 'SMS'}</p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-600">Subject</label>
+                            <p class="text-lg">${campaign.subject}</p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-600">Message</label>
+                            <p class="text-gray-800 bg-gray-50 p-4 rounded-lg">${campaign.message}</p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-600">Recipients</label>
+                            <p class="text-lg">${campaign.recipients?.length || 0} customers</p>
+                            <div class="mt-2 max-h-40 overflow-y-auto">
+                                ${campaign.recipients?.map(r => `
+                                    <div class="text-sm text-gray-600 py-1">${r.name} ${r.email ? `(${r.email})` : ''} ${r.phone ? `- ${r.phone}` : ''}</div>
+                                `).join('') || ''}
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-600">Date</label>
+                            <p class="text-lg">${campaign.date}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function deleteCampaign(index) {
+            if (!confirm('Delete this campaign?')) return;
+            const campaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
+            campaigns.splice(index, 1);
+            localStorage.setItem('campaigns', JSON.stringify(campaigns));
+            store.navigate('campaigns');
         }
 
         function showPurchaseOrderModal() {
@@ -5252,6 +5975,180 @@
             alert(`Exported ${filteredProducts.length} products to CSV!`);
         }
 
+        function startPhysicalInventoryScan() {
+            const products = JSON.parse(localStorage.getItem('products') || '[]');
+            const physicalCounts = JSON.parse(localStorage.getItem('physicalInventoryCounts') || '{}');
+            
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 modal-backdrop flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg p-8 max-w-3xl w-full mx-4 animate-fade-in max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">Physical Inventory Count</h2>
+                        <button onclick="this.closest('.modal-backdrop').remove()" style="background: var(--gray-200); padding: 8px 12px; border-radius: 8px; border: none; cursor: pointer; color: var(--gray-700);">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-gray-700 mb-2 font-semibold">Search/Scan Product</label>
+                        <input type="text" id="physicalScanInput" placeholder="Enter product name, SKU, or scan barcode..." 
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600"
+                            onkeypress="if(event.key === 'Enter') { addPhysicalCount(); }"
+                            autocomplete="off">
+                    </div>
+                    <div class="mb-6 max-h-96 overflow-y-auto border border-gray-200 rounded-lg p-4">
+                        <h3 class="font-semibold mb-4 text-gray-800">Scanned Items</h3>
+                        <div id="physicalCountList" class="space-y-2">
+                            ${Object.entries(physicalCounts).map(([productId, count]) => {
+                                const product = products.find(p => p.id == productId);
+                                if (!product) return '';
+                                const discrepancy = count - product.stock;
+                                return `
+                                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                        <div class="flex-1">
+                                            <div class="font-semibold text-gray-800">${product.name}</div>
+                                            <div class="text-sm text-gray-600">SKU: ${product.sku}</div>
+                                        </div>
+                                        <div class="text-right mr-4">
+                                            <div class="text-sm text-gray-600">System: ${product.stock}</div>
+                                            <div class="text-sm text-gray-600">Physical: <strong>${count}</strong></div>
+                                            ${discrepancy !== 0 ? `
+                                                <div class="text-sm font-bold ${discrepancy > 0 ? 'text-green-600' : 'text-red-600'}">
+                                                    ${discrepancy > 0 ? '+' : ''}${discrepancy}
+                                                </div>
+                                            ` : '<div class="text-sm text-green-600">✓ Match</div>'}
+                                        </div>
+                                        <button onclick="removePhysicalCount('${productId}')" class="btn" style="background: var(--danger); color: white; padding: 6px 12px; font-size: 14px;">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                `;
+                            }).join('') || '<p class="text-gray-500 text-center py-4">No items scanned yet. Start scanning products above.</p>'}
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="completePhysicalInventory()" class="flex-1 btn-primary" style="padding: 12px; border-radius: 10px; font-weight: 600;">
+                            <i class="fas fa-check mr-2"></i>Complete Audit
+                        </button>
+                        <button onclick="clearPhysicalInventory()" class="btn" style="background: var(--gray-200); color: var(--gray-700); padding: 12px; border-radius: 10px; font-weight: 600;">
+                            <i class="fas fa-redo mr-2"></i>Clear All
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            setTimeout(() => {
+                document.getElementById('physicalScanInput')?.focus();
+            }, 100);
+        }
+
+        function addPhysicalCount() {
+            const input = document.getElementById('physicalScanInput');
+            const searchTerm = input.value.trim();
+            if (!searchTerm) return;
+            
+            const products = JSON.parse(localStorage.getItem('products') || '[]');
+            const product = products.find(p => 
+                p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (p.barcode && p.barcode.includes(searchTerm))
+            );
+            
+            if (!product) {
+                alert('Product not found!');
+                return;
+            }
+            
+            const physicalCounts = JSON.parse(localStorage.getItem('physicalInventoryCounts') || '{}');
+            const currentCount = physicalCounts[product.id] || 0;
+            physicalCounts[product.id] = currentCount + 1;
+            localStorage.setItem('physicalInventoryCounts', JSON.stringify(physicalCounts));
+            
+            input.value = '';
+            input.focus();
+            
+            document.querySelector('.modal-backdrop')?.remove();
+            startPhysicalInventoryScan();
+        }
+
+        function removePhysicalCount(productId) {
+            const physicalCounts = JSON.parse(localStorage.getItem('physicalInventoryCounts') || '{}');
+            delete physicalCounts[productId];
+            localStorage.setItem('physicalInventoryCounts', JSON.stringify(physicalCounts));
+            
+            document.querySelector('.modal-backdrop')?.remove();
+            startPhysicalInventoryScan();
+        }
+
+        function clearPhysicalInventory() {
+            if (!confirm('Clear all physical counts?')) return;
+            localStorage.removeItem('physicalInventoryCounts');
+            document.querySelector('.modal-backdrop')?.remove();
+            startPhysicalInventoryScan();
+        }
+
+        function completePhysicalInventory() {
+            const products = JSON.parse(localStorage.getItem('products') || '[]');
+            const physicalCounts = JSON.parse(localStorage.getItem('physicalInventoryCounts') || '{}');
+            
+            const discrepancies = [];
+            Object.entries(physicalCounts).forEach(([productId, physicalCount]) => {
+                const product = products.find(p => p.id == productId);
+                if (product) {
+                    const systemCount = product.stock;
+                    const difference = physicalCount - systemCount;
+                    if (difference !== 0) {
+                        discrepancies.push({
+                            product,
+                            systemCount,
+                            physicalCount,
+                            difference
+                        });
+                    }
+                }
+            });
+            
+            const resultsDiv = document.getElementById('physicalInventoryResults');
+            const listDiv = document.getElementById('discrepancyList');
+            
+            if (resultsDiv && listDiv) {
+                resultsDiv.classList.remove('hidden');
+                if (discrepancies.length === 0) {
+                    listDiv.innerHTML = `
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                            <i class="fas fa-check-circle text-green-600 text-3xl mb-2"></i>
+                            <p class="text-green-800 font-semibold">All items match! No discrepancies found.</p>
+                        </div>
+                    `;
+                } else {
+                    listDiv.innerHTML = discrepancies.map(d => `
+                        <div class="border ${d.difference > 0 ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'} rounded-lg p-4">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <div class="font-semibold text-gray-800">${d.product.name}</div>
+                                    <div class="text-sm text-gray-600">SKU: ${d.product.sku}</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-sm text-gray-600">System: <strong>${d.systemCount}</strong></div>
+                                    <div class="text-sm text-gray-600">Physical: <strong>${d.physicalCount}</strong></div>
+                                    <div class="text-lg font-bold ${d.difference > 0 ? 'text-green-600' : 'text-red-600'}">
+                                        ${d.difference > 0 ? '+' : ''}${d.difference}
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        ${d.difference > 0 ? 'Extra items found' : 'Missing items - Possible theft!'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+            
+            document.querySelector('.modal-backdrop')?.remove();
+            store.navigate('inventory');
+        }
+
         function exportReport() {
             const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
             const purchaseOrders = JSON.parse(localStorage.getItem('purchaseOrders') || '[]');
@@ -5331,6 +6228,66 @@
             alert('Report exported successfully!');
         }
 
+        function exportTaxReport() {
+            const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+            const settings = store.getState().settings;
+            const taxRates = settings.taxRates || [];
+            
+            // Filter sales transactions
+            const salesTransactions = invoices;
+            
+            // Calculate tax breakdown
+            const taxByType = {};
+            salesTransactions.forEach(t => {
+                const taxAmount = t.tax || 0;
+                const taxType = t.taxType || settings.defaultTaxType || 'gst';
+                
+                if (!taxByType[taxType]) {
+                    taxByType[taxType] = { total: 0, count: 0, transactions: [] };
+                }
+                taxByType[taxType].total += taxAmount;
+                taxByType[taxType].count += 1;
+                taxByType[taxType].transactions.push({
+                    id: t.id,
+                    date: t.date,
+                    customer: t.customer,
+                    taxable: t.subtotal || t.total - taxAmount,
+                    tax: taxAmount,
+                    total: t.total
+                });
+            });
+            
+            // Create CSV content
+            let csv = 'Tax Report\n';
+            csv += `Generated: ${new Date().toLocaleString()}\n\n`;
+            csv += 'Tax Summary by Type\n';
+            csv += 'Tax Type,Rate,Transactions,Total Tax Collected,Taxable Amount\n';
+            
+            taxRates.forEach(tax => {
+                const data = taxByType[tax.type] || { total: 0, count: 0, transactions: [] };
+                const taxable = data.transactions.reduce((sum, t) => sum + t.taxable, 0);
+                csv += `${tax.name},${tax.rate}%,${data.count},${data.total.toFixed(2)},${taxable.toFixed(2)}\n`;
+            });
+            
+            csv += '\nDetailed Transaction List\n';
+            csv += 'Invoice ID,Date,Customer,Taxable Amount,Tax Amount,Total,Tax Type\n';
+            
+            salesTransactions.forEach(t => {
+                const taxType = t.taxType || settings.defaultTaxType || 'gst';
+                const taxName = taxRates.find(tr => tr.type === taxType)?.name || 'Tax';
+                const taxable = t.subtotal || t.total - (t.tax || 0);
+                csv += `${t.id},${t.date},"${t.customer}",${taxable.toFixed(2)},${(t.tax || 0).toFixed(2)},${t.total.toFixed(2)},${taxName}\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tax-report-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            alert('Tax report exported successfully!');
+        }
+
         let dateTimeInterval = null;
 
         function handleDashboardSearch(event) {
@@ -5399,6 +6356,7 @@
                     case 'customers': html = CustomersPage(); break;
                     case 'invoices': html = InvoicesPage(); break;
                     case 'reports': html = ReportsPage(); break;
+                    case 'campaigns': html = CampaignsPage(); break;
                     case 'settings': html = SettingsPage(); break;
                     default: html = Dashboard();
                 }
@@ -5440,6 +6398,92 @@
 
         store.subscribe(render);
         render();
+
+        // Offline Mode Support
+        let isOnline = navigator.onLine;
+        let offlineQueue = JSON.parse(localStorage.getItem('offlineQueue') || '[]');
+
+        // Update online status indicator
+        function updateOnlineStatus() {
+            const statusIndicator = document.getElementById('offlineStatusIndicator');
+            if (statusIndicator) {
+                if (isOnline) {
+                    statusIndicator.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+                    statusIndicator.innerHTML = '<i class="fas fa-wifi"></i> Online';
+                    setTimeout(() => statusIndicator.remove(), 3000);
+                } else {
+                    statusIndicator.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+                    statusIndicator.innerHTML = '<i class="fas fa-wifi-slash"></i> Offline Mode';
+                }
+            }
+        }
+
+        // Create status indicator
+        function createStatusIndicator() {
+            if (!document.getElementById('offlineStatusIndicator')) {
+                const indicator = document.createElement('div');
+                indicator.id = 'offlineStatusIndicator';
+                document.body.appendChild(indicator);
+                updateOnlineStatus();
+            }
+        }
+
+        // Listen for online/offline events
+        window.addEventListener('online', () => {
+            isOnline = true;
+            createStatusIndicator();
+            updateOnlineStatus();
+            syncOfflineData();
+        });
+
+        window.addEventListener('offline', () => {
+            isOnline = false;
+            createStatusIndicator();
+            updateOnlineStatus();
+        });
+
+        // Sync offline data when back online
+        function syncOfflineData() {
+            if (offlineQueue.length > 0 && isOnline) {
+                // In a real application, this would sync with a server
+                // For now, we'll just clear the queue and show a message
+                const count = offlineQueue.length;
+                offlineQueue = [];
+                localStorage.setItem('offlineQueue', JSON.stringify(offlineQueue));
+                if (count > 0) {
+                    alert(`${count} offline transaction(s) have been processed. All data is saved locally.`);
+                }
+            }
+        }
+
+        // Initialize offline status
+        createStatusIndicator();
+        updateOnlineStatus();
+
+        // Service Worker Registration for Offline Support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(() => {
+                    // Service worker registration failed (expected in local file system)
+                    // This is normal when running from file:// protocol
+                    console.log('Service Worker not available (running locally)');
+                });
+            });
+        }
+
+        // Enhanced localStorage with offline queue
+        const originalSetItem = Storage.prototype.setItem;
+        Storage.prototype.setItem = function(key, value) {
+            originalSetItem.call(this, key, value);
+            if (!isOnline && (key === 'invoices' || key === 'products' || key === 'customers')) {
+                offlineQueue.push({
+                    key,
+                    value,
+                    timestamp: new Date().toISOString()
+                });
+                localStorage.setItem('offlineQueue', JSON.stringify(offlineQueue));
+            }
+        };
     </script>
 </body>
 </html>
