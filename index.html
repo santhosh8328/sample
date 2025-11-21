@@ -1846,6 +1846,16 @@
             const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
             const customers = JSON.parse(localStorage.getItem('customers') || '[]');
             
+            // Get credit notes and calculate stats
+            const creditNotes = invoices.filter(inv => inv.isCreditNote || (inv.id && inv.id.startsWith('CN-')));
+            const totalCreditNotes = creditNotes.length;
+            const availableCreditNotes = creditNotes.filter(cn => (cn.creditNoteStatus || 'available') === 'available').length;
+            const partiallyUsedCreditNotes = creditNotes.filter(cn => (cn.creditNoteStatus || 'available') === 'partially_used').length;
+            const fullyUsedCreditNotes = creditNotes.filter(cn => (cn.creditNoteStatus || 'available') === 'fully_used').length;
+            const totalCreditAmount = creditNotes.reduce((sum, cn) => sum + (cn.total || 0), 0);
+            const usedCreditAmount = creditNotes.reduce((sum, cn) => sum + (cn.usedAmount || 0), 0);
+            const remainingCreditAmount = creditNotes.reduce((sum, cn) => sum + (cn.remainingAmount || cn.total || 0), 0);
+            
             // Get filter values from state
             const filters = store.getState().invoiceFilters || {
                 search: '',
@@ -2050,6 +2060,111 @@
                                             <tr>
                                                 <td colspan="7" class="px-4 py-8 text-center text-gray-500">
                                                     No invoices found matching the selected filters
+                                                </td>
+                                            </tr>
+                                        `}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Credit Notes Section -->
+                        <div class="bg-white rounded-lg shadow-sm p-6 mt-6">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-2xl font-bold text-gray-800">
+                                    <i class="fas fa-file-invoice-dollar mr-2 text-red-600"></i>Credit Notes
+                                </h2>
+                            </div>
+                            
+                            <!-- Credit Notes Summary Cards -->
+                            <div class="grid md:grid-cols-4 gap-4 mb-6">
+                                <div class="bg-gradient-to-br from-red-50 to-red-100 p-4 rounded-lg border border-red-200">
+                                    <div class="text-sm text-red-700 font-semibold mb-1">Total Credit Notes</div>
+                                    <div class="text-2xl font-bold text-red-800">${totalCreditNotes}</div>
+                                    <div class="text-xs text-red-600 mt-1">${formatCurrency(totalCreditAmount)} total value</div>
+                                </div>
+                                <div class="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                                    <div class="text-sm text-green-700 font-semibold mb-1">Available</div>
+                                    <div class="text-2xl font-bold text-green-800">${availableCreditNotes}</div>
+                                    <div class="text-xs text-green-600 mt-1">${formatCurrency(remainingCreditAmount)} remaining</div>
+                                </div>
+                                <div class="bg-gradient-to-br from-yellow-50 to-yellow-100 p-4 rounded-lg border border-yellow-200">
+                                    <div class="text-sm text-yellow-700 font-semibold mb-1">Partially Used</div>
+                                    <div class="text-2xl font-bold text-yellow-800">${partiallyUsedCreditNotes}</div>
+                                    <div class="text-xs text-yellow-600 mt-1">In use</div>
+                                </div>
+                                <div class="bg-gradient-to-br from-gray-50 to-gray-100 p-4 rounded-lg border border-gray-200">
+                                    <div class="text-sm text-gray-700 font-semibold mb-1">Fully Used</div>
+                                    <div class="text-2xl font-bold text-gray-800">${fullyUsedCreditNotes}</div>
+                                    <div class="text-xs text-gray-600 mt-1">${formatCurrency(usedCreditAmount)} used</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Credit Notes Table -->
+                            <div class="overflow-x-auto">
+                                <table class="w-full" id="creditNotesTable">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Credit Note ID</th>
+                                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Customer</th>
+                                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Date</th>
+                                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Original Invoice</th>
+                                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Total Amount</th>
+                                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Used</th>
+                                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Remaining</th>
+                                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Status</th>
+                                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200">
+                                        ${creditNotes.length > 0 ? creditNotes.map(cn => {
+                                            const status = cn.creditNoteStatus || 'available';
+                                            const remaining = cn.remainingAmount !== undefined ? cn.remainingAmount : cn.total;
+                                            const used = cn.usedAmount || 0;
+                                            const total = cn.total || 0;
+                                            const statusColors = {
+                                                'available': 'bg-green-100 text-green-800',
+                                                'partially_used': 'bg-yellow-100 text-yellow-800',
+                                                'fully_used': 'bg-gray-100 text-gray-800'
+                                            };
+                                            const statusLabels = {
+                                                'available': 'Available',
+                                                'partially_used': 'Partially Used',
+                                                'fully_used': 'Fully Used'
+                                            };
+                                            return `
+                                                <tr class="hover:bg-gray-50">
+                                                    <td class="px-4 py-3 font-semibold text-red-600">${cn.id}</td>
+                                                    <td class="px-4 py-3 text-gray-800">${cn.customer || 'N/A'}</td>
+                                                    <td class="px-4 py-3 text-gray-600">${cn.date}</td>
+                                                    <td class="px-4 py-3 text-gray-600">${cn.originalInvoiceId || cn.creditNoteDetails?.originalInvoiceId || 'N/A'}</td>
+                                                    <td class="px-4 py-3 font-semibold text-gray-800">${formatCurrency(total)}</td>
+                                                    <td class="px-4 py-3 text-gray-600">${formatCurrency(used)}</td>
+                                                    <td class="px-4 py-3 font-semibold ${remaining > 0 ? 'text-green-600' : 'text-gray-600'}">${formatCurrency(remaining)}</td>
+                                                    <td class="px-4 py-3">
+                                                        <span class="px-3 py-1 ${statusColors[status] || 'bg-gray-100 text-gray-800'} rounded-full text-sm font-semibold">
+                                                            ${statusLabels[status] || 'Available'}
+                                                        </span>
+                                                    </td>
+                                                    <td class="px-4 py-3">
+                                                        <button onclick="viewInvoice('${cn.id}')" class="text-indigo-600 hover:text-indigo-800 mr-3" title="View Details">
+                                                            <i class="fas fa-eye"></i>
+                                                        </button>
+                                                        <button onclick="printCreditNote('${cn.id}')" class="text-gray-600 hover:text-gray-800" title="Print">
+                                                            <i class="fas fa-print"></i>
+                                                        </button>
+                                                        ${cn.usageHistory && cn.usageHistory.length > 0 ? `
+                                                            <button onclick="showCreditNoteUsage('${cn.id}')" class="text-blue-600 hover:text-blue-800 ml-3" title="View Usage History">
+                                                                <i class="fas fa-history"></i>
+                                                            </button>
+                                                        ` : ''}
+                                                    </td>
+                                                </tr>
+                                            `;
+                                        }).join('') : `
+                                            <tr>
+                                                <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                                                    No credit notes found
                                                 </td>
                                             </tr>
                                         `}
@@ -3861,6 +3976,113 @@
             checkout(paymentMethod);
         }
 
+        function showReturnSuccessModal(returnId) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 modal-backdrop flex items-center justify-center z-50';
+            modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            modal.style.backdropFilter = 'blur(4px)';
+            modal.style.zIndex = '9998'; // Lower z-index so print dialog appears on top
+            modal.innerHTML = `
+                <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl" style="animation: slideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);">
+                    <div class="text-center">
+                        <!-- Success Icon with Animation -->
+                        <div class="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 mb-6 shadow-lg" style="animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;">
+                            <i class="fas fa-undo text-5xl text-white"></i>
+                        </div>
+                        
+                        <!-- Success Message -->
+                        <h2 class="text-3xl font-bold text-gray-900 mb-3" style="animation: fadeInUp 0.5s ease-out 0.3s both;">Return Processed!</h2>
+                        <p class="text-gray-600 mb-1 text-lg" style="animation: fadeInUp 0.5s ease-out 0.4s both;">
+                            Return <span class="font-bold text-blue-600 text-xl">${returnId}</span>
+                        </p>
+                        <p class="text-gray-500 text-sm mb-6" style="animation: fadeInUp 0.5s ease-out 0.5s both;">Credit note has been generated successfully</p>
+                        
+                        <!-- Decorative Line -->
+                        <div class="my-6" style="animation: fadeInUp 0.5s ease-out 0.6s both;">
+                            <div class="h-1 w-32 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full mx-auto"></div>
+                        </div>
+                        
+                        <!-- Action Button -->
+                        <div class="mt-8" style="animation: fadeInUp 0.5s ease-out 0.7s both;">
+                            <button id="continueReturnBtn" 
+                                class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-6 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95">
+                                <i class="fas fa-check mr-2"></i>Continue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <style>
+                    @keyframes slideIn {
+                        from {
+                            opacity: 0;
+                            transform: translateY(-30px) scale(0.9);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translateY(0) scale(1);
+                        }
+                    }
+                    @keyframes scaleIn {
+                        from {
+                            transform: scale(0) rotate(-180deg);
+                        }
+                        to {
+                            transform: scale(1) rotate(0deg);
+                        }
+                    }
+                    @keyframes fadeInUp {
+                        from {
+                            opacity: 0;
+                            transform: translateY(10px);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translateY(0);
+                        }
+                    }
+                </style>
+            `;
+            document.body.appendChild(modal);
+            
+            // After print window closes, bring modal to front
+            setTimeout(() => {
+                modal.style.zIndex = '9999'; // Bring to front after print
+            }, 3000);
+            
+            // Handle continue button click - only way to close modal
+            const continueBtn = modal.querySelector('#continueReturnBtn');
+            continueBtn.addEventListener('click', () => {
+                // Close any open print windows (not the main window)
+                try {
+                    if (window.currentPrintWindow && !window.currentPrintWindow.closed) {
+                        window.currentPrintWindow.close();
+                    }
+                } catch (e) {}
+                
+                // Stay on POS page
+                const currentPage = store.getState().currentPage;
+                if (currentPage !== 'pos') {
+                    store.navigate('pos');
+                }
+                
+                // Close modal with animation
+                modal.style.opacity = '0';
+                modal.style.transition = 'opacity 0.3s ease-out';
+                setTimeout(() => {
+                    if (modal.parentNode) {
+                        modal.remove();
+                    }
+                }, 300);
+            });
+            
+            // Don't allow closing on backdrop click - only Continue button
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    // Do nothing - require Continue button click
+                }
+            });
+        }
+
         function showPaymentSuccessModal(invoiceId) {
             const currentPage = store.getState().currentPage;
             const modal = document.createElement('div');
@@ -4052,8 +4274,9 @@
                 // Get current return ID and details BEFORE clearing state
                 const currentReturnId = store.getState().currentReturnId;
                 let exchangeReturnDetails = null;
+                let creditNoteId = null;
                 
-                // Get exchange/return details if exists
+                // Get exchange/return details if exists and track credit note usage
                 if (currentReturnId) {
                     try {
                         const returns = JSON.parse(localStorage.getItem('returns') || '[]');
@@ -4062,8 +4285,52 @@
                         if (exchangeReturnDetails && (!exchangeReturnDetails.items || !Array.isArray(exchangeReturnDetails.items))) {
                             exchangeReturnDetails.items = exchangeReturnDetails.items || [];
                         }
+                        
+                        // If exchange credit is being applied, find and update the related credit note
+                        if (exchangeCredit > 0 && exchangeReturnDetails && exchangeReturnDetails.type === 'return') {
+                            // Find the credit note associated with this return
+                            const allInvoices = JSON.parse(localStorage.getItem('invoices') || '[]');
+                            const relatedCreditNote = allInvoices.find(inv => 
+                                inv.isCreditNote && 
+                                (inv.returnId === currentReturnId || inv.creditNoteDetails?.returnId === currentReturnId)
+                            );
+                            
+                            if (relatedCreditNote && relatedCreditNote.remainingAmount > 0) {
+                                creditNoteId = relatedCreditNote.id;
+                                const amountToUse = Math.min(exchangeCredit, relatedCreditNote.remainingAmount);
+                                
+                                // Update credit note usage
+                                relatedCreditNote.usedAmount = (relatedCreditNote.usedAmount || 0) + amountToUse;
+                                relatedCreditNote.remainingAmount = Math.max(0, relatedCreditNote.remainingAmount - amountToUse);
+                                
+                                // Update status
+                                if (relatedCreditNote.remainingAmount <= 0) {
+                                    relatedCreditNote.creditNoteStatus = 'fully_used';
+                                } else if (relatedCreditNote.usedAmount > 0) {
+                                    relatedCreditNote.creditNoteStatus = 'partially_used';
+                                }
+                                
+                                // Add to usage history
+                                if (!relatedCreditNote.usageHistory) {
+                                    relatedCreditNote.usageHistory = [];
+                                }
+                                relatedCreditNote.usageHistory.push({
+                                    invoiceId: 'PENDING', // Will be updated with actual invoice ID after invoice is created
+                                    amount: parseFloat(amountToUse.toFixed(2)),
+                                    date: new Date().toISOString().split('T')[0],
+                                    type: 'exchange'
+                                });
+                                
+                                // Save updated credit note
+                                const invoiceIndex = allInvoices.findIndex(inv => inv.id === relatedCreditNote.id);
+                                if (invoiceIndex !== -1) {
+                                    allInvoices[invoiceIndex] = relatedCreditNote;
+                                    localStorage.setItem('invoices', JSON.stringify(allInvoices));
+                                }
+                            }
+                        }
                     } catch (error) {
-                        console.warn('Error loading return details:', error);
+                        console.warn('Error loading return details or updating credit note:', error);
                         exchangeReturnDetails = null;
                     }
                 }
@@ -4086,6 +4353,28 @@
                     }
                 }
                 const newInvoiceId = `INV-${String(maxInvoiceNum + 1).padStart(3, '0')}`;
+                
+                // Update credit note usage history with actual invoice ID if credit note was used
+                if (creditNoteId) {
+                    try {
+                        const allInvoicesForUpdate = JSON.parse(localStorage.getItem('invoices') || '[]');
+                        const creditNoteToUpdate = allInvoicesForUpdate.find(inv => inv.id === creditNoteId);
+                        if (creditNoteToUpdate && creditNoteToUpdate.usageHistory && creditNoteToUpdate.usageHistory.length > 0) {
+                            // Update the last entry with the actual invoice ID
+                            const lastEntry = creditNoteToUpdate.usageHistory[creditNoteToUpdate.usageHistory.length - 1];
+                            if (lastEntry && (lastEntry.invoiceId === 'PENDING' || !lastEntry.invoiceId)) {
+                                lastEntry.invoiceId = newInvoiceId;
+                                const invoiceIndex = allInvoicesForUpdate.findIndex(inv => inv.id === creditNoteId);
+                                if (invoiceIndex !== -1) {
+                                    allInvoicesForUpdate[invoiceIndex] = creditNoteToUpdate;
+                                    localStorage.setItem('invoices', JSON.stringify(allInvoicesForUpdate));
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('Error updating credit note usage history with invoice ID:', error);
+                    }
+                }
                 
                 // Store intermediate values for transparency and verification
                 const afterDiscountValue = parseFloat(afterDiscount.toFixed(2));
@@ -4118,6 +4407,7 @@
                     status: 'completed',
                     // Exchange/Return information - include full details in invoice
                     returnId: currentReturnId || null, // Link to return/exchange if exists
+                    creditNoteId: creditNoteId || null, // Link to credit note if used
                     exchangeReturnDetails: exchangeReturnDetails ? {
                         id: exchangeReturnDetails.id || '',
                         type: exchangeReturnDetails.type || 'return', // 'return' or 'exchange'
@@ -4619,7 +4909,8 @@
                 const tax = subtotal * (settings.taxRate / 100);
                 const total = subtotal + tax;
                 
-                // Create credit note invoice
+                // Create credit note invoice with tracking fields
+                const creditNoteTotal = parseFloat(total.toFixed(2));
                 const creditNote = {
                     id: creditNoteId,
                     date: new Date().toISOString().split('T')[0],
@@ -4639,12 +4930,17 @@
                     afterExchange: parseFloat(subtotal.toFixed(2)),
                     taxRate: settings.taxRate,
                     tax: parseFloat(tax.toFixed(2)),
-                    total: parseFloat(total.toFixed(2)),
+                    total: creditNoteTotal,
                     payment: 'Credit Note',
                     status: 'completed',
                     returnId: returnRecord.id,
                     originalInvoiceId: returnRecord.invoiceId,
                     isCreditNote: true,
+                    // Credit note tracking fields
+                    remainingAmount: creditNoteTotal, // Amount still available to use
+                    usedAmount: 0, // Amount already used
+                    usageHistory: [], // Array of {invoiceId, amount, date, type}
+                    creditNoteStatus: 'available', // 'available', 'partially_used', 'fully_used'
                     creditNoteDetails: {
                         returnId: returnRecord.id,
                         originalInvoiceId: returnRecord.invoiceId,
@@ -6438,21 +6734,33 @@
                         exchangeCredit: 0,
                         currentReturnId: null
                     });
+                    
+                    // Close modal immediately before showing notification
+                    if (modalElement) {
+                        modalElement.remove();
+                    } else {
+                        // Fallback: try to find and close modal
+                        const modal = document.querySelector('.modal-backdrop');
+                        if (modal) modal.remove();
+                    }
+                    
+                    // Show return success notification with same style as payment success
+                    showReturnSuccessModal(newReturn.id);
                 } else {
                     // For EXCHANGE: Apply credit to current order (existing behavior)
                     store.setState({ 
                         exchangeCredit: total,
                         currentReturnId: newReturn.id
                     });
-                }
-                
-                // Close modal immediately before rendering
-                if (modalElement) {
-                    modalElement.remove();
-                } else {
-                    // Fallback: try to find and close modal
-                    const modal = document.querySelector('.modal-backdrop');
-                    if (modal) modal.remove();
+                    
+                    // Close modal immediately before rendering
+                    if (modalElement) {
+                        modalElement.remove();
+                    } else {
+                        // Fallback: try to find and close modal
+                        const modal = document.querySelector('.modal-backdrop');
+                        if (modal) modal.remove();
+                    }
                 }
                 
                 // Stay on POS page and render to show updated amount
